@@ -1,6 +1,6 @@
 # Pegasus Terminal OS
 
-A Linux terminal emulator theme for Pegasus Frontend.
+- A theme for Pegasus Frontend that transforms your gaming interface into a nostalgic command-line experience.
 
 **More information:** [Command Reference & Documentation](https://github.com/ZagonAb/Pegasus-Terminal-OS/blob/main/PEGASUS_TERMINAL_OS.md)
 
