@@ -505,7 +505,84 @@ reboot
 
 ---
 
-### 10. Utility Commands
+### 10.`Theme` - Terminal Theme and Prompt Management
+
+**Description:** Manage terminal color schemes and prompt styles.
+
+**Usage:**
+```bash
+theme [subcommand] [options]
+```
+
+**Color Scheme Subcommands:**
+- `theme list` - List available color schemes
+- `theme set <scheme>` - Set active color scheme
+- `theme current` - Show current color scheme
+- `theme reset` - Reset to default color scheme
+
+**Prompt Style Subcommands:**
+- `theme prompt list` - List available prompt styles
+- `theme prompt set <style>` - Set prompt style
+- `theme prompt current` - Show current prompt style
+- `theme prompt reset` - Reset to default prompt style
+
+**Available Color Schemes (14 total):**
+- `default` - Classic terminal colors
+- `matrix` - Green on black Matrix style
+- `cyberpunk` - Cyan and magenta neon colors
+- `dracula` - Popular Dracula theme palette
+- `monokai` - Classic Monokai editor theme
+- `amber` - Vintage amber monochrome
+- `gruvbox` - Retro groove color scheme
+- `nord` - Arctic inspired palette
+- `material-dark` - Google Material Design dark theme
+- `solarized-dark` - Classic developer color scheme
+- `one-dark` - Popular Atom/VS Code theme
+- `tokyo-night` - Modern Japanese neon aesthetic
+- `synthwave-84` - Retrowave/Outrun 80s style
+- `rose-pine` - Elegant minimalist theme
+
+**Available Prompt Styles (14 total):**
+- `default` - Standard user@host:path$ format
+- `minimal` - Clean > prompt
+- `powerline` - Styled with powerline separators
+- `arrow` - Simple arrow prompt →
+- `retro` - C:\> style DOS prompt
+- `fish` - Fish shell style prompt
+- `zsh` - Oh-my-zsh style with git info
+- `hacker` - Matrix-style hacker prompt
+- `root` - Superuser/admin style prompt
+- `unix` - Classic Unix/BSD style prompt
+- `session` - Interactive console with session info
+- `clock` - Shows current time in prompt
+- `date` - Shows current date in prompt
+- `geometric` - Styled with ◢◤◥◣ geometric symbols
+
+**Examples:**
+```bash
+# Color scheme management
+theme list
+theme set cyberpunk
+theme current
+theme reset
+
+# Prompt style management
+theme prompt list
+theme prompt set arrow
+theme prompt set retro
+theme prompt current
+theme prompt reset
+
+# Combined use
+theme set dracula
+theme prompt set powerline
+```
+
+**Aliases:** `colors`, `scheme`
+
+----
+
+### 11. Utility Commands
 
 #### `help` - Command Help
 **Description:** Display help information for commands.

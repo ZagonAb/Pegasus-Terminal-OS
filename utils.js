@@ -114,8 +114,14 @@ function registerTerminalCommands(kernel) {
             kernel.clearBuffer();
 
             if (typeof terminalModel !== 'undefined') {
-                var promptText = kernel.currentUser + "@pegasus:" +
-                (kernel.getUserPath ? kernel.getUserPath(kernel.cwd) : kernel.cwd) + "$ ";
+                var promptText = "";
+                if (typeof root !== 'undefined' && root.currentPromptStyle) {
+                    promptText = root.currentPromptStyle.generatePrompt(kernel);
+                } else {
+                    promptText = kernel.currentUser + "@pegasus:" +
+                    (kernel.getUserPath ? kernel.getUserPath(kernel.cwd) : kernel.cwd) + "$ ";
+                }
+
                 terminalModel.append({
                     prompt: promptText,
                     command: "",
@@ -2611,6 +2617,431 @@ function registerTerminalCommands(kernel) {
                 ],
                 stderr: [],
                 exitCode: 0,
+                sideEffects: {}
+            };
+        }
+    });
+
+    CommandRegistry.register(kernel, "theme", {
+        help: "Manage terminal theme, color schemes and prompt styles",
+        usage: "theme [list|set <scheme>|prompt [list|set <style>|current|reset]|current|reset]",
+        minArgs: 0,
+        maxArgs: 3,
+        aliases: ["colors", "scheme"],
+        requiredState: kernel.states.SHELL,
+        requiredAuth: true,
+        execute: function (args, flags) {
+            var stdout = [];
+            var stderr = [];
+
+            var availableSchemes = [
+                { name: "default", displayName: "Default Terminal", description: "Classic terminal colors" },
+                { name: "matrix", displayName: "Matrix Green", description: "Green on black Matrix style" },
+                { name: "cyberpunk", displayName: "Cyberpunk Neon", description: "Cyan and magenta neon colors" },
+                { name: "dracula", displayName: "Dracula Dark", description: "Popular Dracula theme palette" },
+                { name: "monokai", displayName: "Monokai Pro", description: "Classic Monokai editor theme" },
+                { name: "amber", displayName: "Amber Retro", description: "Vintage amber monochrome terminal" },
+                { name: "gruvbox", displayName: "Gruvbox Dark", description: "Retro groove color scheme" },
+                { name: "nord", displayName: "Nord Polar", description: "Arctic inspired palette" },
+                { name: "material-dark", displayName: "Material Dark", description: "Google Material Design dark theme" },
+                { name: "solarized-dark", displayName: "Solarized Dark", description: "Classic developer color scheme" },
+                { name: "one-dark", displayName: "One Dark", description: "Popular Atom/VS Code theme" },
+                { name: "tokyo-night", displayName: "Tokyo Night", description: "Modern Japanese neon aesthetic" },
+                { name: "synthwave-84", displayName: "Synthwave '84", description: "Retrowave/Outrun 80s style" },
+                { name: "rose-pine", displayName: "Rose Pine", description: "Elegant minimalist theme" }
+            ];
+
+            var availablePromptStyles = [
+                { name: "default", displayName: "Default", description: "Standard user@host:path$ format" },
+                { name: "minimal", displayName: "Minimal", description: "Clean > prompt" },
+                { name: "powerline", displayName: "Powerline", description: "Styled with powerline separators" },
+                { name: "arrow", displayName: "Arrow", description: "Simple arrow prompt →" },
+                { name: "retro", displayName: "Retro", description: "C:\> style DOS prompt" },
+                { name: "fish", displayName: "Fish", description: "Fish shell style prompt" },
+                { name: "zsh", displayName: "Zsh", description: "Oh-my-zsh style with git info" },
+                { name: "hacker", displayName: "Hacker", description: "Matrix-style hacker prompt" },
+                { name: "root", displayName: "Root", description: "Superuser/admin style prompt" },
+                { name: "unix", displayName: "Unix", description: "Classic Unix/BSD style prompt" },
+                { name: "session", displayName: "Session", description: "Interactive console with session info" },
+                { name: "clock", displayName: "Clock", description: "Shows current time in prompt" },
+                { name: "date", displayName: "Date", description: "Shows current date in prompt" },
+                { name: "geometric", displayName: "Geometric", description: "Styled with ◢◤◥◣ geometric symbols" }
+            ];
+
+            if (args.length === 0) {
+                stdout.push("THEME MANAGER");
+                stdout.push(repeatString("=", 40));
+                stdout.push("");
+                stdout.push("Usage:");
+                stdout.push("  theme list                    - List available color schemes");
+                stdout.push("  theme set <scheme>            - Set active color scheme");
+                stdout.push("  theme current                 - Show current color scheme");
+                stdout.push("  theme reset                   - Reset color scheme to default");
+                stdout.push("");
+                stdout.push("  theme prompt list             - List available prompt styles");
+                stdout.push("  theme prompt set <style>      - Set prompt style");
+                stdout.push("  theme prompt current          - Show current prompt style");
+                stdout.push("  theme prompt reset            - Reset prompt to default style");
+                stdout.push("");
+                stdout.push("Examples:");
+                stdout.push("  theme set cyberpunk           - Change to Cyberpunk color scheme");
+                stdout.push("  theme prompt set arrow        - Change to arrow prompt style");
+                stdout.push("  theme prompt set retro        - Change to retro DOS prompt");
+                stdout.push("");
+                stdout.push("Aliases: colors, scheme");
+
+                return {
+                    stdout: stdout,
+                    stderr: [],
+                    exitCode: 0,
+                    sideEffects: {}
+                };
+            }
+
+            var subcommand = args[0].toLowerCase();
+
+            if (subcommand === "prompt") {
+                if (args.length < 2) {
+                    stderr.push("Error: prompt subcommand required");
+                    stderr.push("Usage: theme prompt [list|set <style>|current|reset]");
+                    return {
+                        stdout: [],
+                        stderr: stderr,
+                        exitCode: 1,
+                        sideEffects: {}
+                    };
+                }
+
+                var promptCmd = args[1].toLowerCase();
+
+                if (promptCmd === "list" || promptCmd === "ls") {
+                    stdout.push("AVAILABLE PROMPT STYLES");
+                    stdout.push(repeatString("=", 40));
+                    stdout.push("");
+
+                    var currentPrompt = api.memory.get("terminal_prompt_style") || "default";
+
+                    for (var i = 0; i < availablePromptStyles.length; i++) {
+                        var style = availablePromptStyles[i];
+                        var marker = style.name === currentPrompt ? " [*]" : "    ";
+                        stdout.push(marker + padRight(style.name, 12) + " - " + style.displayName);
+                        stdout.push("       " + style.description);
+                    }
+
+                    stdout.push("");
+                    stdout.push("Current prompt style: " + currentPrompt);
+                    stdout.push("Use 'theme prompt set <style>' to change");
+
+                    return {
+                        stdout: stdout,
+                        stderr: [],
+                        exitCode: 0,
+                        sideEffects: {}
+                    };
+                }
+
+                if (promptCmd === "current" || promptCmd === "show") {
+                    var currentPrompt = api.memory.get("terminal_prompt_style") || "default";
+
+                    var promptInfo = null;
+                    for (var i = 0; i < availablePromptStyles.length; i++) {
+                        if (availablePromptStyles[i].name === currentPrompt) {
+                            promptInfo = availablePromptStyles[i];
+                            break;
+                        }
+                    }
+
+                    stdout.push("CURRENT PROMPT STYLE");
+                    stdout.push(repeatString("=", 40));
+                    stdout.push("");
+
+                    if (promptInfo) {
+                        stdout.push("Name: " + promptInfo.displayName);
+                        stdout.push("ID: " + promptInfo.name);
+                        stdout.push("Description: " + promptInfo.description);
+
+                        var examplePath = "~/Documents";
+                        var examplePrompt = "";
+
+                        switch(currentPrompt) {
+                            case "default":
+                                examplePrompt = kernel.currentUser + "@pegasus:" + examplePath + "$ ";
+                                break;
+                            case "minimal":
+                                examplePrompt = "[Documents] > ";
+                                break;
+                            case "arrow":
+                                examplePrompt = "→ ";
+                                break;
+                            case "retro":
+                                examplePrompt = "C:\\Users\\" + kernel.currentUser + "\\Documents>";
+                                break;
+                            case "hacker":
+                                examplePrompt = "root@" + kernel.currentUser + ":/11010101# ";
+                                break;
+                            default:
+                                examplePrompt = kernel.currentUser + "@pegasus:" + examplePath + "$ ";
+                        }
+
+                        stdout.push("Example: " + examplePrompt);
+                    } else {
+                        stdout.push("Style: " + currentPrompt);
+                    }
+
+                    return {
+                        stdout: stdout,
+                        stderr: [],
+                        exitCode: 0,
+                        sideEffects: {}
+                    };
+                }
+
+                if (promptCmd === "reset") {
+                    api.memory.set("terminal_prompt_style", "default");
+                    stdout.push("Prompt style reset to default");
+                    stdout.push("Changes applied immediately!");
+
+                    return {
+                        stdout: stdout,
+                        stderr: [],
+                        exitCode: 0,
+                        sideEffects: {
+                            reloadPrompt: true
+                        }
+                    };
+                }
+
+                if (promptCmd === "set") {
+                    if (args.length < 3) {
+                        stderr.push("Error: prompt style name required");
+                        stderr.push("Usage: theme prompt set <style>");
+                        stderr.push("Use 'theme prompt list' to see available styles");
+
+                        return {
+                            stdout: [],
+                            stderr: stderr,
+                            exitCode: 1,
+                            sideEffects: {}
+                        };
+                    }
+
+                    var newPromptStyle = args[2].toLowerCase();
+                    var styleExists = false;
+                    var styleDisplayName = "";
+
+                    for (var i = 0; i < availablePromptStyles.length; i++) {
+                        if (availablePromptStyles[i].name === newPromptStyle) {
+                            styleExists = true;
+                            styleDisplayName = availablePromptStyles[i].displayName;
+                            break;
+                        }
+                    }
+
+                    if (!styleExists) {
+                        stderr.push("Error: prompt style '" + newPromptStyle + "' not found");
+                        stderr.push("Use 'theme prompt list' to see available styles");
+
+                        return {
+                            stdout: [],
+                            stderr: stderr,
+                            exitCode: 1,
+                            sideEffects: {}
+                        };
+                    }
+
+                    api.memory.set("terminal_prompt_style", newPromptStyle);
+
+                    stdout.push("Prompt style changed to: " + styleDisplayName);
+                    stdout.push("Changes applied immediately!");
+
+                    return {
+                        stdout: stdout,
+                        stderr: [],
+                        exitCode: 0,
+                        sideEffects: {
+                            reloadPrompt: true
+                        }
+                    };
+                }
+
+                stderr.push("Error: unknown prompt subcommand '" + promptCmd + "'");
+                stderr.push("Use 'theme prompt' for help");
+
+                return {
+                    stdout: [],
+                    stderr: stderr,
+                    exitCode: 1,
+                    sideEffects: {}
+                };
+            }
+
+            if (subcommand === "list" || subcommand === "ls") {
+                stdout.push("AVAILABLE COLOR SCHEMES");
+                stdout.push(repeatString("=", 40));
+                stdout.push("");
+
+                var currentScheme = api.memory.get("terminal_color_scheme") || "default";
+
+                for (var i = 0; i < availableSchemes.length; i++) {
+                    var scheme = availableSchemes[i];
+                    var marker = scheme.name === currentScheme ? " [*]" : "    ";
+                    stdout.push(marker + padRight(scheme.name, 16) + " - " + scheme.displayName);
+                    stdout.push("       " + scheme.description);
+                }
+
+                stdout.push("");
+                stdout.push("Current color scheme: " + currentScheme);
+                stdout.push("Use 'theme set <scheme>' to change");
+
+                return {
+                    stdout: stdout,
+                    stderr: [],
+                    exitCode: 0,
+                    sideEffects: {}
+                };
+            }
+
+            if (subcommand === "current" || subcommand === "show") {
+                var currentScheme = api.memory.get("terminal_color_scheme") || "default";
+
+                var schemeInfo = null;
+                for (var i = 0; i < availableSchemes.length; i++) {
+                    if (availableSchemes[i].name === currentScheme) {
+                        schemeInfo = availableSchemes[i];
+                        break;
+                    }
+                }
+
+                stdout.push("CURRENT COLOR SCHEME");
+                stdout.push(repeatString("=", 40));
+                stdout.push("");
+
+                if (schemeInfo) {
+                    stdout.push("Name: " + schemeInfo.displayName);
+                    stdout.push("ID: " + schemeInfo.name);
+                    stdout.push("Description: " + schemeInfo.description);
+                } else {
+                    stdout.push("Scheme: " + currentScheme);
+                }
+
+                var currentPrompt = api.memory.get("terminal_prompt_style") || "default";
+                stdout.push("");
+                stdout.push("CURRENT PROMPT STYLE");
+                stdout.push(repeatString("-", 40));
+
+                var promptInfo = null;
+                for (var i = 0; i < availablePromptStyles.length; i++) {
+                    if (availablePromptStyles[i].name === currentPrompt) {
+                        promptInfo = availablePromptStyles[i];
+                        break;
+                    }
+                }
+
+                if (promptInfo) {
+                    stdout.push("Name: " + promptInfo.displayName);
+                    stdout.push("ID: " + promptInfo.name);
+                } else {
+                    stdout.push("Style: " + currentPrompt);
+                }
+
+                return {
+                    stdout: stdout,
+                    stderr: [],
+                    exitCode: 0,
+                    sideEffects: {}
+                };
+            }
+
+            if (subcommand === "reset") {
+                if (args.length > 1 && args[1].toLowerCase() === "prompt") {
+                    api.memory.set("terminal_prompt_style", "default");
+                    stdout.push("Prompt style reset to default");
+                    stdout.push("Changes applied immediately!");
+
+                    return {
+                        stdout: stdout,
+                        stderr: [],
+                        exitCode: 0,
+                        sideEffects: {
+                            reloadPrompt: true
+                        }
+                    };
+                } else {
+                    api.memory.set("terminal_color_scheme", "default");
+                    stdout.push("Color scheme reset to default");
+                    stdout.push("Changes applied immediately!");
+
+                    return {
+                        stdout: stdout,
+                        stderr: [],
+                        exitCode: 0,
+                        sideEffects: {
+                            reloadTheme: true
+                        }
+                    };
+                }
+            }
+
+            if (subcommand === "set") {
+                if (args.length < 2) {
+                    stderr.push("Error: scheme name required");
+                    stderr.push("Usage: theme set <scheme>");
+                    stderr.push("Use 'theme list' to see available schemes");
+
+                    return {
+                        stdout: [],
+                        stderr: stderr,
+                        exitCode: 1,
+                        sideEffects: {}
+                    };
+                }
+
+                var newScheme = args[1].toLowerCase();
+                var schemeExists = false;
+                var schemeDisplayName = "";
+
+                for (var i = 0; i < availableSchemes.length; i++) {
+                    if (availableSchemes[i].name === newScheme) {
+                        schemeExists = true;
+                        schemeDisplayName = availableSchemes[i].displayName;
+                        break;
+                    }
+                }
+
+                if (!schemeExists) {
+                    stderr.push("Error: color scheme '" + newScheme + "' not found");
+                    stderr.push("Use 'theme list' to see available schemes");
+
+                    return {
+                        stdout: [],
+                        stderr: stderr,
+                        exitCode: 1,
+                        sideEffects: {}
+                    };
+                }
+
+                api.memory.set("terminal_color_scheme", newScheme);
+
+                stdout.push("Color scheme changed to: " + schemeDisplayName);
+                stdout.push("Changes applied immediately!");
+
+                return {
+                    stdout: stdout,
+                    stderr: [],
+                    exitCode: 0,
+                    sideEffects: {
+                        reloadTheme: true
+                    }
+                };
+            }
+
+            stderr.push("Error: unknown subcommand '" + subcommand + "'");
+            stderr.push("Use 'theme' without arguments for help");
+
+            return {
+                stdout: [],
+                stderr: stderr,
+                exitCode: 1,
                 sideEffects: {}
             };
         }

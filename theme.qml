@@ -18,6 +18,118 @@ FocusScope {
     height: parent.height
     focus: true
 
+    property string activeColorSchemeName: {
+        var saved = api.memory.get("terminal_color_scheme");
+        return saved || "default";
+    }
+
+    property string activePromptStyleName: {
+        var saved = api.memory.get("terminal_prompt_style");
+        return saved || "default";
+    }
+
+    function reloadPromptStyle() {
+        var newStyle = api.memory.get("terminal_prompt_style") || "default";
+        console.log("[THEME] Reloading prompt style: " + newStyle);
+        activePromptStyleName = newStyle;
+        promptStyleLoader.source = "assets/prompt-styles/" + newStyle + ".qml";
+    }
+
+    property var promptStyleLoader: Qt.createQmlObject('
+    import QtQuick 2.15;
+    import "assets/prompt-styles" as PromptStyles;
+    Loader {
+        id: promptStyleLoader
+        source: "assets/prompt-styles/" + activePromptStyleName + ".qml"
+
+        onStatusChanged: {
+            if (status === Loader.Error) {
+                console.log("[THEME] Error loading prompt style: " + activePromptStyleName);
+                console.log("[THEME] Falling back to default style");
+                source = "assets/prompt-styles/default.qml";
+            }
+        }
+    }
+    ', root, "promptStyleLoader");
+
+    property var currentPromptStyle: promptStyleLoader.item || defaultPromptStyle
+    property var defaultPromptStyle: QtObject {
+        readonly property string name: "default"
+        readonly property string displayName: "Default Prompt"
+
+        function generatePrompt(kernel) {
+            if (kernel.bootState === kernel.states.SHELL && kernel.currentUser) {
+                var displayPath = kernel.cwd;
+                if (kernel.getUserPath) {
+                    displayPath = kernel.getUserPath(kernel.cwd);
+                }
+                return kernel.currentUser + "@pegasus:" + displayPath + "$ ";
+            } else {
+                return kernel.prompt;
+            }
+        }
+
+        function generateStatePrompt(kernel) {
+            return kernel.prompt;
+        }
+    }
+
+    property var colorSchemeLoader: Qt.createQmlObject('
+    import QtQuick 2.15;
+    import "assets/color-schemes" as ColorSchemes;
+
+    Loader {
+        id: schemeLoader
+        source: "assets/color-schemes/" + activeColorSchemeName + ".qml"
+
+        onStatusChanged: {
+            if (status === Loader.Error) {
+                console.log("[THEME] Error loading color scheme: " + activeColorSchemeName);
+                console.log("[THEME] Falling back to default scheme");
+                source = "assets/color-schemes/default.qml";
+            }
+        }
+    }
+    ', root, "colorSchemeLoader");
+
+    property var currentColorScheme: colorSchemeLoader.item || defaultColorScheme
+    property var defaultColorScheme: QtObject {
+        readonly property string name: "default"
+        readonly property string displayName: "Default Terminal"
+        readonly property string backgroundColor: "#0c0d0d"
+        readonly property string textColor: "#ffffff"
+        readonly property string promptColor: "#00ff00"
+        readonly property string promptErrorColor: "#ff5555"
+        readonly property string cursorColor: "#00ff00"
+        readonly property string cursorTextColor: "#000000"
+        readonly property string errorColor: "#ff5555"
+        readonly property string systemColor: "#ffff00"
+        readonly property string directoryColor: "#33a4e4"
+        readonly property string normalTextColor: "#aaaaaa"
+        readonly property string statusBarBackground: "#111111"
+        readonly property string statusUserColor: "#00ff00"
+        readonly property string statusPathColor: "#55ffff"
+        readonly property string statusStateColor: "#ffff55"
+    }
+
+    function reloadColorScheme() {
+        var newScheme = api.memory.get("terminal_color_scheme") || "default";
+        console.log("[THEME] Reloading color scheme: " + newScheme);
+        activeColorSchemeName = newScheme;
+        colorSchemeLoader.source = "assets/color-schemes/" + newScheme + ".qml";
+    }
+
+    Connections {
+        target: api.memory
+
+        function onMemoryChanged() {
+            var saved = api.memory.get("terminal_color_scheme");
+            if (saved && saved !== activeColorSchemeName) {
+                reloadColorScheme();
+            }
+        }
+    }
+
     Scanlines {
         id: scanlines
         anchors.fill: parent
@@ -1247,7 +1359,7 @@ FocusScope {
     Rectangle {
         id: terminalContainer
         anchors.fill: parent
-        color: "#0c0d0d"
+        color: root.currentColorScheme.backgroundColor
 
         Flickable {
             id: outputView
@@ -1297,7 +1409,7 @@ FocusScope {
                                     Text {
                                         id: promptText
                                         text: model.prompt
-                                        color: model.isError ? "#ff5555" : "#00ff00"
+                                        color: model.isError ? root.currentColorScheme.promptErrorColor : root.currentColorScheme.promptColor
                                         font.family: global.fonts.mono
                                         font.pixelSize: vpx(14)
                                         anchors.verticalCenter: parent.verticalCenter
@@ -1320,7 +1432,7 @@ FocusScope {
                                                     var pos = commandInput.cursorPosition;
                                                     return model.command.substring(0, pos);
                                                 }
-                                                color: "#ffffff"
+                                                color: root.currentColorScheme.textColor
                                                 font.family: global.fonts.mono
                                                 font.pixelSize: vpx(14)
                                                 wrapMode: Text.NoWrap
@@ -1330,7 +1442,7 @@ FocusScope {
                                                 id: cursorRect
                                                 width: charUnderCursor.contentWidth > 0 ? charUnderCursor.contentWidth : vpx(8)
                                                 height: vpx(16)
-                                                color: "#00ff00"
+                                                color: root.currentColorScheme.cursorColor
                                                 visible: index === terminalModel.count - 1 && !terminalKernel.passwordMode
                                                 anchors.verticalCenter: parent.verticalCenter
 
@@ -1347,7 +1459,7 @@ FocusScope {
                                                         }
                                                         return model.command.charAt(pos);
                                                     }
-                                                    color: "#000000"
+                                                    color: root.currentColorScheme.cursorTextColor
                                                     font.family: global.fonts.mono
                                                     font.pixelSize: vpx(14)
                                                 }
@@ -1389,7 +1501,7 @@ FocusScope {
                                                     }
                                                     return model.command.substring(pos + 1);
                                                 }
-                                                color: "#ffffff"
+                                                color: root.currentColorScheme.textColor
                                                 font.family: global.fonts.mono
                                                 font.pixelSize: vpx(14)
                                                 wrapMode: Text.NoWrap
@@ -1399,7 +1511,7 @@ FocusScope {
                                         Text {
                                             id: commandText
                                             text: model.command
-                                            color: "#ffffff"
+                                            color: root.currentColorScheme.textColor
                                             font.family: global.fonts.mono
                                             font.pixelSize: vpx(14)
                                             visible: false
@@ -1412,8 +1524,8 @@ FocusScope {
                                 width: parent.width
                                 text: model.result
                                 color: {
-                                    if (model.isError) return "#ff5555";
-                                    if (model.isSystem) return "#ffff00";
+                                    if (model.isError) return root.currentColorScheme.errorColor;
+                                    if (model.isSystem) return root.currentColorScheme.systemColor;
 
                                     var line = text.trim();
 
@@ -1425,7 +1537,7 @@ FocusScope {
                                         line === "games" ||
                                         line === "home" ||
                                         line === "system") {
-                                        return "#33a4e4";
+                                        return root.currentColorScheme.directoryColor;
                                         }
 
                                         if (line.indexOf("Collections") === 0 ||
@@ -1434,14 +1546,14 @@ FocusScope {
                                             line.indexOf("Favorites") === 0 ||
                                             line.indexOf("All-games") === 0 ||
                                             line.indexOf("games") === 0) {
-                                            return "#33a4e4";
+                                            return root.currentColorScheme.directoryColor;
                                             }
 
                                             if (terminalKernel.cwd === "/Collections" && line.length > 0 && line !== "(empty directory)") {
-                                                return "#33a4e4";
+                                                return root.currentColorScheme.directoryColor;
                                             }
 
-                                            return "#aaaaaa";
+                                            return root.currentColorScheme.normalTextColor;
                                 }
                                 font.family: global.fonts.mono
                                 font.pixelSize: vpx(14)
@@ -1457,15 +1569,9 @@ FocusScope {
                 var promptText = "";
 
                 if (terminalKernel.bootState === terminalKernel.states.SHELL && terminalKernel.currentUser) {
-                    var displayPath = terminalKernel.cwd;
-
-                    if (terminalKernel.getUserPath) {
-                        displayPath = terminalKernel.getUserPath(terminalKernel.cwd);
-                    }
-
-                    promptText = terminalKernel.currentUser + "@pegasus:" + displayPath + "$ ";
+                    promptText = root.currentPromptStyle.generatePrompt(terminalKernel);
                 } else {
-                    promptText = terminalKernel.prompt;
+                    promptText = root.currentPromptStyle.generateStatePrompt(terminalKernel);
                 }
 
                 terminalModel.append({
@@ -1641,7 +1747,7 @@ FocusScope {
             anchors.left: parent.left
             anchors.right: parent.right
             height: vpx(20)
-            color: "#111111"
+            color: root.currentColorScheme.statusBarBackground
 
             RowLayout {
                 anchors.fill: parent
@@ -1654,7 +1760,7 @@ FocusScope {
 
                 Text {
                     text: terminalKernel.currentUser || "guest"
-                    color: "#00ff00"
+                    color: root.currentColorScheme.statusUserColor
                     font.family: global.fonts.condensed
                     font.pixelSize: vpx(12)
                 }
@@ -1667,7 +1773,7 @@ FocusScope {
                         }
                         return path;
                     }
-                    color: "#55ffff"
+                    color: root.currentColorScheme.statusPathColor
                     font.family: global.fonts.condensed
                     font.pixelSize: vpx(12)
                     elide: Text.ElideLeft
@@ -1689,7 +1795,7 @@ FocusScope {
                             default: return "UNKNOWN";
                         }
                     }
-                    color: "#ffff55"
+                    color: root.currentColorScheme.statusStateColor
                     font.family: global.fonts.condensed
                     font.pixelSize: vpx(12)
                 }
