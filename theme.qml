@@ -18,6 +18,20 @@ FocusScope {
     height: parent.height
     focus: true
 
+    FontLoader { id: fontDotGothic16;  source: "assets/fonts/dotgothic16/dotgothic16.ttf" }
+    FontLoader { id: fontFiraCode;      source: "assets/fonts/firacode/firacode.ttf" }
+    FontLoader { id: fontPressStart2P;  source: "assets/fonts/pressstart2p.ttf" }
+    FontLoader { id: fontSpaceMono;     source: "assets/fonts/pressstart2p/spacemono.ttf" }
+    FontLoader { id: fontSpecialElite;  source: "assets/fonts/specialelite/specialelite.ttf" }
+    FontLoader { id: fontSyneMono;      source: "assets/fonts/synemono/synemono.ttf" }
+    FontLoader { id: fontVT323;         source: "assets/fonts/vt323/vt323.ttf" }
+    FontLoader { id: fontTerminus;      source: "assets/fonts/terminus/terminus.ttf" }
+    FontLoader { id: fontUbuntuMono;    source: "assets/fonts/ubuntumono/ubuntumono.ttf" }
+    FontLoader { id: fontCascadiaCode;  source: "assets/fonts/cascadiacode/cascadiacode.ttf" }
+    FontLoader { id: fontIBMPlexMono;   source: "assets/fonts/ibmplexmono/ibmplexmono.ttf" }
+
+    property string activeFontFamily: fontFamilyMap[activeFont] || global.fonts.mono
+
     property string activeColorSchemeName: {
         var saved = api.memory.get("terminal_color_scheme");
         return saved || "default";
@@ -28,11 +42,39 @@ FocusScope {
         return saved || "default";
     }
 
+    property string activeFont: {
+        var saved = api.memory.get("terminal_font");
+        return saved || "default";
+    }
+
+    readonly property var fontFamilyMap: ({
+        "default":      global.fonts.mono,
+        "dotgothic16":  fontDotGothic16.name,
+        "firacode":     fontFiraCode.name,
+        "pressstart2p": fontPressStart2P.name,
+        "spacemono":    fontSpaceMono.name,
+        "specialelite": fontSpecialElite.name,
+        "synemono":     fontSyneMono.name,
+        "vt323":        fontVT323.name,
+        "terminus":     fontTerminus.name,
+        "ubuntumono":   fontUbuntuMono.name,
+        "cascadiacode": fontCascadiaCode.name,
+        "ibmplexmono":  fontIBMPlexMono.name
+
+    })
+
     function reloadPromptStyle() {
         var newStyle = api.memory.get("terminal_prompt_style") || "default";
         console.log("[THEME] Reloading prompt style: " + newStyle);
         activePromptStyleName = newStyle;
         promptStyleLoader.source = "assets/prompt-styles/" + newStyle + ".qml";
+    }
+
+    function reloadFont() {
+        var newFont = api.memory.get("terminal_font") || "default";
+        console.log("[THEME] Reloading font: " + newFont);
+        activeFont = newFont;
+        activeFontFamily = fontFamilyMap[newFont] || root.activeFontFamily;
     }
 
     property var promptStyleLoader: Qt.createQmlObject('
@@ -126,6 +168,11 @@ FocusScope {
             var saved = api.memory.get("terminal_color_scheme");
             if (saved && saved !== activeColorSchemeName) {
                 reloadColorScheme();
+            }
+
+            var savedFont = api.memory.get("terminal_font") || "default";
+            if (savedFont !== activeFont) {
+                reloadFont();
             }
         }
     }
@@ -1410,8 +1457,8 @@ FocusScope {
                                         id: promptText
                                         text: model.prompt
                                         color: model.isError ? root.currentColorScheme.promptErrorColor : root.currentColorScheme.promptColor
-                                        font.family: global.fonts.mono
-                                        font.pixelSize: vpx(14)
+                                        font.family: root.activeFontFamily
+                                        font.pixelSize: vpx(16)
                                         anchors.verticalCenter: parent.verticalCenter
                                     }
 
@@ -1433,8 +1480,8 @@ FocusScope {
                                                     return model.command.substring(0, pos);
                                                 }
                                                 color: root.currentColorScheme.textColor
-                                                font.family: global.fonts.mono
-                                                font.pixelSize: vpx(14)
+                                                font.family: root.activeFontFamily
+                                                font.pixelSize: vpx(16)
                                                 wrapMode: Text.NoWrap
                                             }
 
@@ -1460,8 +1507,8 @@ FocusScope {
                                                         return model.command.charAt(pos);
                                                     }
                                                     color: root.currentColorScheme.cursorTextColor
-                                                    font.family: global.fonts.mono
-                                                    font.pixelSize: vpx(14)
+                                                    font.family: root.activeFontFamily
+                                                    font.pixelSize: vpx(16)
                                                 }
 
                                                 SequentialAnimation on opacity {
@@ -1502,8 +1549,8 @@ FocusScope {
                                                     return model.command.substring(pos + 1);
                                                 }
                                                 color: root.currentColorScheme.textColor
-                                                font.family: global.fonts.mono
-                                                font.pixelSize: vpx(14)
+                                                font.family: root.activeFontFamily
+                                                font.pixelSize: vpx(16)
                                                 wrapMode: Text.NoWrap
                                             }
                                         }
@@ -1512,8 +1559,8 @@ FocusScope {
                                             id: commandText
                                             text: model.command
                                             color: root.currentColorScheme.textColor
-                                            font.family: global.fonts.mono
-                                            font.pixelSize: vpx(14)
+                                            font.family: root.activeFontFamily
+                                            font.pixelSize: vpx(16)
                                             visible: false
                                         }
                                     }
@@ -1555,8 +1602,8 @@ FocusScope {
 
                                             return root.currentColorScheme.normalTextColor;
                                 }
-                                font.family: global.fonts.mono
-                                font.pixelSize: vpx(14)
+                                font.family: root.activeFontFamily
+                                font.pixelSize: vpx(16)
                                 wrapMode: Text.Wrap
                                 visible: text !== ""
                             }
@@ -1687,7 +1734,7 @@ FocusScope {
                         isError: false
                     });
                 }
-                    }else {
+                    } else {
                         outputView.updateCurrentCommand(inputText);
 
                         var result = terminalKernel.executeCommand(inputText);
@@ -1697,6 +1744,18 @@ FocusScope {
                         }
                         if (result.stderr && result.stderr.length > 0) {
                             outputView.addResultToLast(result.stderr.join('\n'), true, false);
+                        }
+
+                        if (result.sideEffects) {
+                            if (result.sideEffects.reloadTheme) {
+                                root.reloadColorScheme();
+                            }
+                            if (result.sideEffects.reloadPrompt) {
+                                root.reloadPromptStyle();
+                            }
+                            if (result.sideEffects.reloadFont) {
+                                root.reloadFont();
+                            }
                         }
 
                         if (result.sideEffects && result.sideEffects.clearScreen) {

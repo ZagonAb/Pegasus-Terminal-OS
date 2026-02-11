@@ -2623,10 +2623,10 @@ function registerTerminalCommands(kernel) {
     });
 
     CommandRegistry.register(kernel, "theme", {
-        help: "Manage terminal theme, color schemes and prompt styles",
-        usage: "theme [list|set <scheme>|prompt [list|set <style>|current|reset]|current|reset]",
+        help: "Manage terminal theme, color schemes, prompt styles and fonts",
+        usage: "theme [list|set <scheme>|prompt [list|set <style>|current|reset]|font [list|set <font>|current|reset]|current|reset]",
         minArgs: 0,
-        maxArgs: 3,
+        maxArgs: 4,
         aliases: ["colors", "scheme"],
         requiredState: kernel.states.SHELL,
         requiredAuth: true,
@@ -2635,37 +2635,52 @@ function registerTerminalCommands(kernel) {
             var stderr = [];
 
             var availableSchemes = [
-                { name: "default", displayName: "Default Terminal", description: "Classic terminal colors" },
-                { name: "matrix", displayName: "Matrix Green", description: "Green on black Matrix style" },
-                { name: "cyberpunk", displayName: "Cyberpunk Neon", description: "Cyan and magenta neon colors" },
-                { name: "dracula", displayName: "Dracula Dark", description: "Popular Dracula theme palette" },
-                { name: "monokai", displayName: "Monokai Pro", description: "Classic Monokai editor theme" },
-                { name: "amber", displayName: "Amber Retro", description: "Vintage amber monochrome terminal" },
-                { name: "gruvbox", displayName: "Gruvbox Dark", description: "Retro groove color scheme" },
-                { name: "nord", displayName: "Nord Polar", description: "Arctic inspired palette" },
-                { name: "material-dark", displayName: "Material Dark", description: "Google Material Design dark theme" },
-                { name: "solarized-dark", displayName: "Solarized Dark", description: "Classic developer color scheme" },
-                { name: "one-dark", displayName: "One Dark", description: "Popular Atom/VS Code theme" },
-                { name: "tokyo-night", displayName: "Tokyo Night", description: "Modern Japanese neon aesthetic" },
-                { name: "synthwave-84", displayName: "Synthwave '84", description: "Retrowave/Outrun 80s style" },
-                { name: "rose-pine", displayName: "Rose Pine", description: "Elegant minimalist theme" }
+                { name: "default",       displayName: "Default Terminal", description: "Classic terminal colors" },
+                { name: "matrix",        displayName: "Matrix Green",     description: "Green on black Matrix style" },
+                { name: "cyberpunk",     displayName: "Cyberpunk Neon",   description: "Cyan and magenta neon colors" },
+                { name: "dracula",       displayName: "Dracula Dark",     description: "Popular Dracula theme palette" },
+                { name: "monokai",       displayName: "Monokai Pro",      description: "Classic Monokai editor theme" },
+                { name: "amber",         displayName: "Amber Retro",      description: "Vintage amber monochrome terminal" },
+                { name: "gruvbox",       displayName: "Gruvbox Dark",     description: "Retro groove color scheme" },
+                { name: "nord",          displayName: "Nord Polar",       description: "Arctic inspired palette" },
+                { name: "material-dark", displayName: "Material Dark",    description: "Google Material Design dark theme" },
+                { name: "solarized-dark",displayName: "Solarized Dark",   description: "Classic developer color scheme" },
+                { name: "one-dark",      displayName: "One Dark",         description: "Popular Atom/VS Code theme" },
+                { name: "tokyo-night",   displayName: "Tokyo Night",      description: "Modern Japanese neon aesthetic" },
+                { name: "synthwave-84",  displayName: "Synthwave '84",    description: "Retrowave/Outrun 80s style" },
+                { name: "rose-pine",     displayName: "Rose Pine",        description: "Elegant minimalist theme" }
             ];
 
             var availablePromptStyles = [
-                { name: "default", displayName: "Default", description: "Standard user@host:path$ format" },
-                { name: "minimal", displayName: "Minimal", description: "Clean > prompt" },
+                { name: "default",   displayName: "Default",   description: "Standard user@host:path$ format" },
+                { name: "minimal",   displayName: "Minimal",   description: "Clean > prompt" },
                 { name: "powerline", displayName: "Powerline", description: "Styled with powerline separators" },
-                { name: "arrow", displayName: "Arrow", description: "Simple arrow prompt →" },
-                { name: "retro", displayName: "Retro", description: "C:\> style DOS prompt" },
-                { name: "fish", displayName: "Fish", description: "Fish shell style prompt" },
-                { name: "zsh", displayName: "Zsh", description: "Oh-my-zsh style with git info" },
-                { name: "hacker", displayName: "Hacker", description: "Matrix-style hacker prompt" },
-                { name: "root", displayName: "Root", description: "Superuser/admin style prompt" },
-                { name: "unix", displayName: "Unix", description: "Classic Unix/BSD style prompt" },
-                { name: "session", displayName: "Session", description: "Interactive console with session info" },
-                { name: "clock", displayName: "Clock", description: "Shows current time in prompt" },
-                { name: "date", displayName: "Date", description: "Shows current date in prompt" },
+                { name: "arrow",     displayName: "Arrow",     description: "Simple arrow prompt →" },
+                { name: "retro",     displayName: "Retro",     description: "C:\\> style DOS prompt" },
+                { name: "fish",      displayName: "Fish",      description: "Fish shell style prompt" },
+                { name: "zsh",       displayName: "Zsh",       description: "Oh-my-zsh style with git info" },
+                { name: "hacker",    displayName: "Hacker",    description: "Matrix-style hacker prompt" },
+                { name: "root",      displayName: "Root",      description: "Superuser/admin style prompt" },
+                { name: "unix",      displayName: "Unix",      description: "Classic Unix/BSD style prompt" },
+                { name: "session",   displayName: "Session",   description: "Interactive console with session info" },
+                { name: "clock",     displayName: "Clock",     description: "Shows current time in prompt" },
+                { name: "date",      displayName: "Date",      description: "Shows current date in prompt" },
                 { name: "geometric", displayName: "Geometric", description: "Styled with ◢◤◥◣ geometric symbols" }
+            ];
+
+            var availableFonts = [
+                { name: "default",      displayName: "Default Mono",   description: "System default monospace font" },
+                { name: "dotgothic16",  displayName: "Dot Gothic 16",  description: "Pixel-style gothic font" },
+                { name: "firacode",     displayName: "Fira Code",      description: "Developer font with ligatures" },
+                { name: "pressstart2p", displayName: "Press Start 2P", description: "Classic 8-bit arcade font" },
+                { name: "spacemono",    displayName: "Space Mono",     description: "Fixed-width typewriter style" },
+                { name: "specialelite", displayName: "Special Elite",  description: "Vintage typewriter aesthetic" },
+                { name: "synemono",     displayName: "Syne Mono",      description: "Modern geometric monospace" },
+                { name: "vt323",        displayName: "VT323",          description: "Classic CRT terminal font" },
+                { name: "terminus",     displayName: "Terminus",        description: "Clean bitmap font for terminals" },
+                { name: "ubuntumono",   displayName: "Ubuntu Mono",     description: "Ubuntu's monospace companion font" },
+                { name: "cascadiacode", displayName: "Cascadia Code",   description: "Microsoft's coding font with ligatures" },
+                { name: "ibmplexmono",  displayName: "IBM Plex Mono",   description: "IBM's modern monospace typeface" }
             ];
 
             if (args.length === 0) {
@@ -2675,7 +2690,7 @@ function registerTerminalCommands(kernel) {
                 stdout.push("Usage:");
                 stdout.push("  theme list                    - List available color schemes");
                 stdout.push("  theme set <scheme>            - Set active color scheme");
-                stdout.push("  theme current                 - Show current color scheme");
+                stdout.push("  theme current                 - Show current settings");
                 stdout.push("  theme reset                   - Reset color scheme to default");
                 stdout.push("");
                 stdout.push("  theme prompt list             - List available prompt styles");
@@ -2683,10 +2698,16 @@ function registerTerminalCommands(kernel) {
                 stdout.push("  theme prompt current          - Show current prompt style");
                 stdout.push("  theme prompt reset            - Reset prompt to default style");
                 stdout.push("");
+                stdout.push("  theme font list               - List available fonts");
+                stdout.push("  theme font set <font>         - Set terminal font");
+                stdout.push("  theme font current            - Show current font");
+                stdout.push("  theme font reset              - Reset font to default");
+                stdout.push("");
                 stdout.push("Examples:");
                 stdout.push("  theme set cyberpunk           - Change to Cyberpunk color scheme");
                 stdout.push("  theme prompt set arrow        - Change to arrow prompt style");
-                stdout.push("  theme prompt set retro        - Change to retro DOS prompt");
+                stdout.push("  theme font set vt323          - Change to VT323 retro font");
+                stdout.push("  theme font set pressstart2p   - Change to 8-bit arcade font");
                 stdout.push("");
                 stdout.push("Aliases: colors, scheme");
 
@@ -2757,30 +2778,19 @@ function registerTerminalCommands(kernel) {
 
                     if (promptInfo) {
                         stdout.push("Name: " + promptInfo.displayName);
-                        stdout.push("ID: " + promptInfo.name);
-                        stdout.push("Description: " + promptInfo.description);
+                        stdout.push("ID:   " + promptInfo.name);
+                        stdout.push("Desc: " + promptInfo.description);
 
                         var examplePath = "~/Documents";
                         var examplePrompt = "";
 
-                        switch(currentPrompt) {
-                            case "default":
-                                examplePrompt = kernel.currentUser + "@pegasus:" + examplePath + "$ ";
-                                break;
-                            case "minimal":
-                                examplePrompt = "[Documents] > ";
-                                break;
-                            case "arrow":
-                                examplePrompt = "→ ";
-                                break;
-                            case "retro":
-                                examplePrompt = "C:\\Users\\" + kernel.currentUser + "\\Documents>";
-                                break;
-                            case "hacker":
-                                examplePrompt = "root@" + kernel.currentUser + ":/11010101# ";
-                                break;
-                            default:
-                                examplePrompt = kernel.currentUser + "@pegasus:" + examplePath + "$ ";
+                        switch (currentPrompt) {
+                            case "default":    examplePrompt = kernel.currentUser + "@pegasus:" + examplePath + "$ "; break;
+                            case "minimal":    examplePrompt = "[Documents] > "; break;
+                            case "arrow":      examplePrompt = "→ "; break;
+                            case "retro":      examplePrompt = "C:\\Users\\" + kernel.currentUser + "\\Documents>"; break;
+                            case "hacker":     examplePrompt = "root@" + kernel.currentUser + ":/11010101# "; break;
+                            default:           examplePrompt = kernel.currentUser + "@pegasus:" + examplePath + "$ ";
                         }
 
                         stdout.push("Example: " + examplePrompt);
@@ -2850,7 +2860,6 @@ function registerTerminalCommands(kernel) {
                     }
 
                     api.memory.set("terminal_prompt_style", newPromptStyle);
-
                     stdout.push("Prompt style changed to: " + styleDisplayName);
                     stdout.push("Changes applied immediately!");
 
@@ -2866,6 +2875,155 @@ function registerTerminalCommands(kernel) {
 
                 stderr.push("Error: unknown prompt subcommand '" + promptCmd + "'");
                 stderr.push("Use 'theme prompt' for help");
+
+                return {
+                    stdout: [],
+                    stderr: stderr,
+                    exitCode: 1,
+                    sideEffects: {}
+                };
+            }
+
+            if (subcommand === "font") {
+                if (args.length < 2) {
+                    stderr.push("Error: font subcommand required");
+                    stderr.push("Usage: theme font [list|set <font>|current|reset]");
+                    return {
+                        stdout: [],
+                        stderr: stderr,
+                        exitCode: 1,
+                        sideEffects: {}
+                    };
+                }
+
+                var fontCmd = args[1].toLowerCase();
+
+                if (fontCmd === "list" || fontCmd === "ls") {
+                    stdout.push("AVAILABLE FONTS");
+                    stdout.push(repeatString("=", 40));
+                    stdout.push("");
+
+                    var currentFont = api.memory.get("terminal_font") || "default";
+
+                    for (var i = 0; i < availableFonts.length; i++) {
+                        var f = availableFonts[i];
+                        var marker = f.name === currentFont ? " [*]" : "    ";
+                        stdout.push(marker + padRight(f.name, 14) + " - " + f.displayName);
+                        stdout.push("       " + f.description);
+                    }
+
+                    stdout.push("");
+                    stdout.push("Current font: " + currentFont);
+                    stdout.push("Use 'theme font set <font>' to change");
+
+                    return {
+                        stdout: stdout,
+                        stderr: [],
+                        exitCode: 0,
+                        sideEffects: {}
+                    };
+                }
+
+                if (fontCmd === "current" || fontCmd === "show") {
+                    var currentFont = api.memory.get("terminal_font") || "default";
+                    var fontInfo = null;
+
+                    for (var i = 0; i < availableFonts.length; i++) {
+                        if (availableFonts[i].name === currentFont) {
+                            fontInfo = availableFonts[i];
+                            break;
+                        }
+                    }
+
+                    stdout.push("CURRENT FONT");
+                    stdout.push(repeatString("=", 40));
+                    stdout.push("");
+
+                    if (fontInfo) {
+                        stdout.push("Name: " + fontInfo.displayName);
+                        stdout.push("ID:   " + fontInfo.name);
+                        stdout.push("Desc: " + fontInfo.description);
+                    } else {
+                        stdout.push("Font: " + currentFont);
+                    }
+
+                    return {
+                        stdout: stdout,
+                        stderr: [],
+                        exitCode: 0,
+                        sideEffects: {}
+                    };
+                }
+
+                if (fontCmd === "reset") {
+                    api.memory.set("terminal_font", "default");
+                    stdout.push("Font reset to default");
+                    stdout.push("Changes applied immediately!");
+
+                    return {
+                        stdout: stdout,
+                        stderr: [],
+                        exitCode: 0,
+                        sideEffects: {
+                            reloadFont: true
+                        }
+                    };
+                }
+
+                if (fontCmd === "set") {
+                    if (args.length < 3) {
+                        stderr.push("Error: font name required");
+                        stderr.push("Usage: theme font set <font>");
+                        stderr.push("Use 'theme font list' to see available fonts");
+
+                        return {
+                            stdout: [],
+                            stderr: stderr,
+                            exitCode: 1,
+                            sideEffects: {}
+                        };
+                    }
+
+                    var newFont = args[2].toLowerCase();
+                    var fontExists = false;
+                    var fontDisplayName = "";
+
+                    for (var i = 0; i < availableFonts.length; i++) {
+                        if (availableFonts[i].name === newFont) {
+                            fontExists = true;
+                            fontDisplayName = availableFonts[i].displayName;
+                            break;
+                        }
+                    }
+
+                    if (!fontExists) {
+                        stderr.push("Error: font '" + newFont + "' not found");
+                        stderr.push("Use 'theme font list' to see available fonts");
+
+                        return {
+                            stdout: [],
+                            stderr: stderr,
+                            exitCode: 1,
+                            sideEffects: {}
+                        };
+                    }
+
+                    api.memory.set("terminal_font", newFont);
+                    stdout.push("Font changed to: " + fontDisplayName);
+                    stdout.push("Changes applied immediately!");
+
+                    return {
+                        stdout: stdout,
+                        stderr: [],
+                        exitCode: 0,
+                        sideEffects: {
+                            reloadFont: true
+                        }
+                    };
+                }
+
+                stderr.push("Error: unknown font subcommand '" + fontCmd + "'");
+                stderr.push("Use 'theme font' for help");
 
                 return {
                     stdout: [],
@@ -2912,21 +3070,23 @@ function registerTerminalCommands(kernel) {
                     }
                 }
 
-                stdout.push("CURRENT COLOR SCHEME");
+                stdout.push("CURRENT SETTINGS");
                 stdout.push(repeatString("=", 40));
                 stdout.push("");
+                stdout.push("COLOR SCHEME");
+                stdout.push(repeatString("-", 40));
 
                 if (schemeInfo) {
                     stdout.push("Name: " + schemeInfo.displayName);
-                    stdout.push("ID: " + schemeInfo.name);
-                    stdout.push("Description: " + schemeInfo.description);
+                    stdout.push("ID:   " + schemeInfo.name);
+                    stdout.push("Desc: " + schemeInfo.description);
                 } else {
                     stdout.push("Scheme: " + currentScheme);
                 }
 
                 var currentPrompt = api.memory.get("terminal_prompt_style") || "default";
                 stdout.push("");
-                stdout.push("CURRENT PROMPT STYLE");
+                stdout.push("PROMPT STYLE");
                 stdout.push(repeatString("-", 40));
 
                 var promptInfo = null;
@@ -2939,9 +3099,29 @@ function registerTerminalCommands(kernel) {
 
                 if (promptInfo) {
                     stdout.push("Name: " + promptInfo.displayName);
-                    stdout.push("ID: " + promptInfo.name);
+                    stdout.push("ID:   " + promptInfo.name);
                 } else {
                     stdout.push("Style: " + currentPrompt);
+                }
+
+                var currentFont = api.memory.get("terminal_font") || "default";
+                stdout.push("");
+                stdout.push("FONT");
+                stdout.push(repeatString("-", 40));
+
+                var fontInfo = null;
+                for (var i = 0; i < availableFonts.length; i++) {
+                    if (availableFonts[i].name === currentFont) {
+                        fontInfo = availableFonts[i];
+                        break;
+                    }
+                }
+
+                if (fontInfo) {
+                    stdout.push("Name: " + fontInfo.displayName);
+                    stdout.push("ID:   " + fontInfo.name);
+                } else {
+                    stdout.push("Font: " + currentFont);
                 }
 
                 return {
@@ -2966,9 +3146,11 @@ function registerTerminalCommands(kernel) {
                             reloadPrompt: true
                         }
                     };
-                } else {
-                    api.memory.set("terminal_color_scheme", "default");
-                    stdout.push("Color scheme reset to default");
+                }
+
+                if (args.length > 1 && args[1].toLowerCase() === "font") {
+                    api.memory.set("terminal_font", "default");
+                    stdout.push("Font reset to default");
                     stdout.push("Changes applied immediately!");
 
                     return {
@@ -2976,10 +3158,23 @@ function registerTerminalCommands(kernel) {
                         stderr: [],
                         exitCode: 0,
                         sideEffects: {
-                            reloadTheme: true
+                            reloadFont: true
                         }
                     };
                 }
+
+                api.memory.set("terminal_color_scheme", "default");
+                stdout.push("Color scheme reset to default");
+                stdout.push("Changes applied immediately!");
+
+                return {
+                    stdout: stdout,
+                    stderr: [],
+                    exitCode: 0,
+                    sideEffects: {
+                        reloadTheme: true
+                    }
+                };
             }
 
             if (subcommand === "set") {
@@ -3021,7 +3216,6 @@ function registerTerminalCommands(kernel) {
                 }
 
                 api.memory.set("terminal_color_scheme", newScheme);
-
                 stdout.push("Color scheme changed to: " + schemeDisplayName);
                 stdout.push("Changes applied immediately!");
 
