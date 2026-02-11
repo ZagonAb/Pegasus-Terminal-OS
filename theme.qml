@@ -20,8 +20,8 @@ FocusScope {
 
     FontLoader { id: fontDotGothic16;  source: "assets/fonts/dotgothic16/dotgothic16.ttf" }
     FontLoader { id: fontFiraCode;      source: "assets/fonts/firacode/firacode.ttf" }
-    FontLoader { id: fontPressStart2P;  source: "assets/fonts/pressstart2p.ttf" }
-    FontLoader { id: fontSpaceMono;     source: "assets/fonts/pressstart2p/spacemono.ttf" }
+    FontLoader { id: fontPressStart2P;  source: "assets/fonts/pressstart2p/pressstart2p.ttf" }
+    FontLoader { id: fontSpaceMono;     source: "assets/fonts/spacemono/spacemono.ttf" }
     FontLoader { id: fontSpecialElite;  source: "assets/fonts/specialelite/specialelite.ttf" }
     FontLoader { id: fontSyneMono;      source: "assets/fonts/synemono/synemono.ttf" }
     FontLoader { id: fontVT323;         source: "assets/fonts/vt323/vt323.ttf" }
