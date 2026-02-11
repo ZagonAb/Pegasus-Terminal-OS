@@ -505,19 +505,16 @@ reboot
 
 ---
 
-### 10.`Theme` - Terminal Theme and Prompt Management
-
-**Description:** Manage terminal color schemes and prompt styles.
-
+### 10. `Theme` - Terminal Theme, Prompt and Font Management
+**Description:** Manage terminal color schemes, prompt styles and fonts.
 **Usage:**
 ```bash
 theme [subcommand] [options]
 ```
-
 **Color Scheme Subcommands:**
 - `theme list` - List available color schemes
 - `theme set <scheme>` - Set active color scheme
-- `theme current` - Show current color scheme
+- `theme current` - Show current color scheme, prompt and font
 - `theme reset` - Reset to default color scheme
 
 **Prompt Style Subcommands:**
@@ -525,6 +522,12 @@ theme [subcommand] [options]
 - `theme prompt set <style>` - Set prompt style
 - `theme prompt current` - Show current prompt style
 - `theme prompt reset` - Reset to default prompt style
+
+**Font Subcommands:**
+- `theme font list` - List available fonts
+- `theme font set <font>` - Set terminal font
+- `theme font current` - Show current font
+- `theme font reset` - Reset to default font
 
 **Available Color Schemes (14 total):**
 - `default` - Classic terminal colors
@@ -558,6 +561,20 @@ theme [subcommand] [options]
 - `date` - Shows current date in prompt
 - `geometric` - Styled with ◢◤◥◣ geometric symbols
 
+**Available Fonts (11 total):**
+- `default` - System default monospace font
+- `dotgothic16` - Pixel-style gothic font
+- `firacode` - Developer font with ligatures
+- `pressstart2p` - Classic 8-bit arcade font
+- `spacemono` - Fixed-width typewriter style
+- `specialelite` - Vintage typewriter aesthetic
+- `synemono` - Modern geometric monospace
+- `vt323` - Classic CRT terminal font
+- `terminus` - Clean bitmap font for terminals
+- `ubuntumono` - Ubuntu's monospace companion font
+- `cascadiacode` - Microsoft's coding font with ligatures
+- `ibmplexmono` - IBM's modern monospace typeface
+
 **Examples:**
 ```bash
 # Color scheme management
@@ -573,14 +590,27 @@ theme prompt set retro
 theme prompt current
 theme prompt reset
 
+# Font management
+theme font list
+theme font set vt323
+theme font set pressstart2p
+theme font set firacode
+theme font current
+theme font reset
+
 # Combined use
 theme set dracula
 theme prompt set powerline
-```
+theme font set cascadiacode
 
+# Reset individual elements
+theme reset
+theme reset prompt
+theme reset font
+```
 **Aliases:** `colors`, `scheme`
 
-----
+---
 
 ### 11. Utility Commands
 
