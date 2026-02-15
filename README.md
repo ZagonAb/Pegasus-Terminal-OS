@@ -2,6 +2,8 @@
 
 A theme for Pegasus Frontend that transforms your gaming interface into a nostalgic command-line experience.
 
+📢 Constant updates until all commands are completed...
+
 More information:
 Command Reference & Documentation
 [https://github.com/ZagonAb/Pegasus-Terminal-OS/blob/main/PEGASUS_TERMINAL_OS.md](https://github.com/ZagonAb/Pegasus-Terminal-OS/blob/main/PEGASUS_TERMINAL_OS.md)
