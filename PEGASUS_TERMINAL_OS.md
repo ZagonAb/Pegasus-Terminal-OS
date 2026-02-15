@@ -4,8 +4,7 @@
 
 ![Version](https://img.shields.io/badge/version-1.0-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Pegasus_Frontend-orange.svg)
-![License](https://img.shields.io/badge/license-MIT-green.svg)
-![License](https://img.shields.io/badge/license-by-nc-sa/4.0.png)
+![License](https://img.shields.io/badge/license-CC--BY--NC--SA--4.0-green.svg)
 
 
 
