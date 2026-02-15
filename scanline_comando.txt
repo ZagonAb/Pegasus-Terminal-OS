@@ -1,0 +1,474 @@
+    CommandRegistry.register(kernel, "scanline", {
+        help: "Control enhanced CRT/scanline effects. Use 'scanline --help' for details",
+        usage: "scanline [on|off|toggle|status|reset|default] [options]",
+        minArgs: 0,
+        maxArgs: 30,
+        aliases: ["crt", "scan"],
+        requiredState: kernel.states.SHELL,
+        requiredAuth: true,
+        execute: function (args, flags) {
+            var stdout = [];
+            var stderr = [];
+
+            function getScanlines() {
+                if (typeof root !== 'undefined' && root.scanlines) {
+                    return root.scanlines;
+                }
+                return null;
+            }
+
+            var scanlines = getScanlines();
+            if (!scanlines) {
+                stderr.push("Error: Scanline system not available");
+                return {
+                    stdout: [],
+                    stderr: stderr,
+                    exitCode: 1,
+                    sideEffects: {}
+                };
+            }
+
+            if (flags.help) {
+                stdout.push("SCANLINE - Enhanced CRT Effect Control");
+                stdout.push(repeatString("=", 70));
+                stdout.push("");
+                stdout.push("DESCRIPTION");
+                stdout.push("  Advanced CRT/scanline overlay with full interface distortion.");
+                stdout.push("  Applies authentic CRT curvature to ALL UI elements (text, graphics, etc.)");
+                stdout.push("  All changes are applied immediately and saved automatically.");
+                stdout.push("");
+                stdout.push("USAGE");
+                stdout.push("  scanline [command] [options]");
+                stdout.push("");
+                stdout.push("COMMANDS");
+                stdout.push("  on                  Enable CRT effect");
+                stdout.push("  off                 Disable CRT effect");
+                stdout.push("  toggle              Toggle effect on/off");
+                stdout.push("  status              Show current settings and parameters");
+                stdout.push("  reset               Reset all settings to factory defaults");
+                stdout.push("  default             Apply default preset");
+                stdout.push("  list, presets       List all available presets");
+                stdout.push("");
+                stdout.push("PRESETS");
+                stdout.push("  Apply predefined CRT configurations:");
+                stdout.push("  scanline <preset>   Apply preset (see list below)");
+                stdout.push("");
+                stdout.push("  Available presets:");
+                stdout.push("    default    - Clean balanced CRT (no curve)");
+                stdout.push("    vhs        - VHS tape with heavy distortion & chromatic aberration");
+                stdout.push("    retro      - Classic 90s gaming monitor");
+                stdout.push("    terminal   - Professional workstation CRT");
+                stdout.push("    arcade     - Intense curved arcade cabinet CRT");
+                stdout.push("    minimal    - Subtle effect, barely visible");
+                stdout.push("    subtle     - Light modern CRT look");
+                stdout.push("");
+                stdout.push("BASIC PARAMETERS");
+                stdout.push("  --intensity <0.0-0.3>   Scanline darkness (default: 0.01)");
+                stdout.push("  --count <800-2000>      Number of scanlines (default: 1600)");
+                stdout.push("  --curvature <0.0-1.0>   Screen barrel distortion (default: 0.0)");
+                stdout.push("                          Affects entire interface! 0.2-0.4 recommended");
+                stdout.push("  --flicker <0.0-1.0>     Screen flicker amount (default: 0.0)");
+                stdout.push("  --fade <0.0-0.1>        Edge fade softness (default: 0.0)");
+                stdout.push("                          Controls smooth brightness fade at curved edges");
+                stdout.push("  --fadeopacity <0.0-1.0> Edge fade color blend (default: 0.0)");
+                stdout.push("                          0.0=fade to black, 1.0=fade to theme color");
+                stdout.push("");
+                stdout.push("QUALITY PARAMETERS");
+                stdout.push("  --brightness <0.1-1.5>  Overall brightness (default: 1.0)");
+                stdout.push("  --temperature <0.1-5.0> Color warmth - higher=warmer (default: 1.0)");
+                stdout.push("  --chroma <0.0-3.0>      Chromatic aberration/RGB shift (default: 0.0)");
+                stdout.push("  --noise <0.0-1.0>       Film grain/noise amount (default: 0.0)");
+                stdout.push("  --glow <0.0-3.0>        Phosphor glow/bloom on bright elements (default: 0.0)");
+                stdout.push("                          Simulates CRT phosphor bloom around lit text");
+                stdout.push("  --glowspread <0.0-1.0>  Glow spread/saturation (default: 0.0)");
+                stdout.push("                          0.0=soft diffuse halo, 1.0=solid bright core");
+                stdout.push("  --zoom <1.0-1.2>        Screen zoom for curvature (default: 1.0)");
+                stdout.push("");
+                stdout.push("ALIASES");
+                stdout.push("  crt, scan");
+                stdout.push("");
+                stdout.push("NOTES");
+                stdout.push("  • Effect is OFF by default on first run");
+                stdout.push("  • Curvature distorts the ENTIRE interface (ShaderEffectSource)");
+                stdout.push("  • Edge fade creates smooth blend at curved borders (no hard edges)");
+                stdout.push("  • All settings persist across sessions (api.memory)");
+                stdout.push("  • Changes apply instantly without restart");
+                stdout.push("  • Higher curvature values may affect readability");
+                stdout.push("  • Use 'reset' if experiencing visual issues");
+
+                return {
+                    stdout: stdout,
+                    stderr: [],
+                    exitCode: 0,
+                    sideEffects: {}
+                };
+            }
+
+            if (args.length > 0 && (args[0] === "list" || args[0] === "presets")) {
+                stdout.push("AVAILABLE CRT/SCANLINE PRESETS");
+                stdout.push(repeatString("=", 70));
+                stdout.push("");
+
+                var presets = [
+                    { name: "default",  desc: "Clean balanced CRT",
+                        specs: "I:0.01 C:1600 Curv:0.0 Fade:0.0 FadeOp:0.0 Zoom:1.0" },
+                        { name: "vhs",      desc: "VHS tape aesthetic",
+                            specs: "I:0.15 C:1400 Curv:0.25 Temp:1.15 Chroma:1.5 Fade:0.04" },
+                            { name: "retro",    desc: "90s gaming monitor",
+                                specs: "I:0.12 C:1500 Curv:0.15 Temp:1.08 Chroma:0.8 Fade:0.03" },
+                                { name: "terminal", desc: "Workstation CRT",
+                                    specs: "I:0.10 C:1700 Curv:0.08 Temp:1.02 Chroma:0.3 Fade:0.02" },
+                                    { name: "arcade",   desc: "Curved arcade cabinet",
+                                        specs: "I:0.18 C:1300 Curv:0.35 Temp:1.12 Chroma:1.2 Fade:0.05" },
+                                        { name: "minimal",  desc: "Barely visible",
+                                            specs: "I:0.04 C:1800 Curv:0.0 Temp:1.0 Chroma:0 Fade:0.01" },
+                                            { name: "subtle",   desc: "Light modern CRT",
+                                                specs: "I:0.06 C:1650 Curv:0.05 Temp:1.01 Chroma:0.2 Fade:0.015" }
+                ];
+
+                var currentPreset = scanlines.currentPreset;
+
+                for (var i = 0; i < presets.length; i++) {
+                    var p = presets[i];
+                    var marker = p.name === currentPreset ? " [*]" : "    ";
+                    stdout.push(marker + padRight(p.name, 12) + " - " + p.desc);
+                    stdout.push("      " + p.specs);
+                }
+
+                stdout.push("");
+                stdout.push("Apply with: scanline <preset_name>");
+                stdout.push("View details: scanline status");
+
+                return {
+                    stdout: stdout,
+                    stderr: [],
+                    exitCode: 0,
+                    sideEffects: {}
+                };
+            }
+
+            if (args.length > 0 && args[0] === "status") {
+                stdout.push("CURRENT SCANLINE SETTINGS");
+                stdout.push(repeatString("=", 70));
+                stdout.push("");
+                stdout.push("Status:          " + (scanlines.enabled ? "ENABLED ✓" : "DISABLED ✗"));
+                stdout.push("Current preset:  " + scanlines.currentPreset);
+                stdout.push("");
+                stdout.push("BASIC PARAMETERS");
+                stdout.push("  Scanline intensity:     " + scanlines.scanlineIntensity.toFixed(3));
+                stdout.push("  Scanline count:         " + scanlines.scanlineCount.toFixed(0));
+                stdout.push("  Curvature amount:       " + scanlines.curvatureAmount.toFixed(3) +
+                (scanlines.curvatureAmount > 0 ? " ⚠" : ""));
+                stdout.push("  Flicker amount:         " + scanlines.flickerAmount.toFixed(3));
+                stdout.push("  Edge fade:              " + scanlines.edgeSoftness.toFixed(3));
+                stdout.push("  Fade opacity:           " + scanlines.fadeOpacity.toFixed(2) +
+                " (color blend: " + (scanlines.fadeOpacity === 0 ? "black" : scanlines.fadeOpacity === 1.0 ? "theme" : "mixed") + ")");
+                stdout.push("");
+                stdout.push("QUALITY PARAMETERS");
+                stdout.push("  Brightness:             " + scanlines.brightness.toFixed(2));
+                stdout.push("  Color temperature:      " + scanlines.colorTemperature.toFixed(2));
+                stdout.push("  Chromatic aberration:   " + scanlines.chromaShift.toFixed(2));
+                stdout.push("  Noise/grain:            " + scanlines.noiseAmount.toFixed(3));
+                stdout.push("  Phosphor glow:          " + scanlines.glowAmount.toFixed(2));
+                stdout.push("  Glow spread:            " + scanlines.glowSpread.toFixed(2));
+                stdout.push("  Zoom factor:            " + scanlines.zoomFactor.toFixed(2));
+                stdout.push("");
+
+                if (scanlines.curvatureAmount > 0) {
+                    stdout.push("⚠ Curvature is active - interface will be distorted");
+                }
+
+                stdout.push("");
+                stdout.push("Use 'scanline <preset>' to apply preset");
+                stdout.push("Use 'scanline --<param> <value>' to adjust individual parameters");
+
+                return {
+                    stdout: stdout,
+                    stderr: [],
+                    exitCode: 0,
+                    sideEffects: {}
+                };
+            }
+
+            if (args.length > 0 && args[0] === "reset") {
+                scanlines.applyPreset("default");
+                scanlines.enabled = false;
+                scanlines.saveSettings();
+
+                stdout.push("✓ All scanline settings reset to factory defaults");
+                stdout.push("Effect is now DISABLED");
+                stdout.push("");
+                stdout.push("Use 'scanline on' to re-enable");
+
+                return {
+                    stdout: stdout,
+                    stderr: [],
+                    exitCode: 0,
+                    sideEffects: {}
+                };
+            }
+
+            var command = args.length > 0 ? args[0] : "";
+            var presetApplied = false;
+            var customAdjustments = false;
+
+            if (command === "on") {
+                scanlines.enabled = true;
+                scanlines.saveSettings();
+                stdout.push("✓ CRT effect ENABLED");
+                stdout.push("Current preset: " + scanlines.currentPreset);
+                if (scanlines.curvatureAmount > 0) {
+                    stdout.push("⚠ Curvature: " + scanlines.curvatureAmount.toFixed(3) + " (active)");
+                }
+                return {
+                    stdout: stdout,
+                    stderr: [],
+                    exitCode: 0,
+                    sideEffects: {}
+                };
+            }
+
+            if (command === "off") {
+                scanlines.enabled = false;
+                scanlines.saveSettings();
+                stdout.push("✓ CRT effect DISABLED");
+                return {
+                    stdout: stdout,
+                    stderr: [],
+                    exitCode: 0,
+                    sideEffects: {}
+                };
+            }
+
+            if (command === "toggle") {
+                scanlines.enabled = !scanlines.enabled;
+                scanlines.saveSettings();
+                stdout.push("✓ CRT effect " + (scanlines.enabled ? "ENABLED" : "DISABLED"));
+                if (scanlines.enabled && scanlines.curvatureAmount > 0) {
+                    stdout.push("⚠ Curvature: " + scanlines.curvatureAmount.toFixed(3) + " (active)");
+                }
+                return {
+                    stdout: stdout,
+                    stderr: [],
+                    exitCode: 0,
+                    sideEffects: {}
+                };
+            }
+
+            var validPresets = ["default", "vhs", "retro", "terminal", "arcade", "minimal", "subtle"];
+            if (command && validPresets.indexOf(command) !== -1) {
+                scanlines.applyPreset(command);
+                presetApplied = true;
+                stdout.push("✓ Applied preset: " + command);
+            }
+
+            if (flags.intensity !== undefined) {
+                var intensity = parseFloat(flags.intensity);
+                if (isNaN(intensity) || intensity < 0 || intensity > 0.3) {
+                    stderr.push("Error: --intensity must be between 0.0 and 0.3");
+                    return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                }
+                scanlines.scanlineIntensity = intensity;
+                customAdjustments = true;
+                stdout.push("Scanline intensity set to " + intensity.toFixed(3));
+            }
+
+            if (flags.count !== undefined) {
+                var count = parseFloat(flags.count);
+                if (isNaN(count) || count < 800 || count > 2000) {
+                    stderr.push("Error: --count must be between 800 and 2000");
+                    return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                }
+                scanlines.scanlineCount = count;
+                customAdjustments = true;
+                stdout.push("Scanline count set to " + count.toFixed(0));
+            }
+
+            if (flags.curvature !== undefined) {
+                var curvature = parseFloat(flags.curvature);
+                if (isNaN(curvature) || curvature < 0 || curvature > 1.0) {
+                    stderr.push("Error: --curvature must be between 0.0 and 1.0");
+                    return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                }
+                scanlines.curvatureAmount = curvature;
+                customAdjustments = true;
+                stdout.push("Curvature set to " + curvature.toFixed(3));
+                if (curvature > 0.4) {
+                    stdout.push("⚠ Warning: High curvature may affect readability");
+                }
+            }
+
+            if (flags.flicker !== undefined) {
+                var flicker = parseFloat(flags.flicker);
+                if (isNaN(flicker) || flicker < 0 || flicker > 1.0) {
+                    stderr.push("Error: --flicker must be between 0.0 and 1.0");
+                    return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                }
+                scanlines.flickerAmount = flicker;
+                customAdjustments = true;
+                stdout.push("Flicker set to " + flicker.toFixed(3));
+            }
+
+            if (flags.fade !== undefined) {
+                var fade = parseFloat(flags.fade);
+                if (isNaN(fade) || fade < 0 || fade > 0.1) {
+                    stderr.push("Error: --fade must be between 0.0 and 0.1");
+                    return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                }
+                scanlines.edgeSoftness = fade;
+                customAdjustments = true;
+                stdout.push("Edge fade set to " + fade.toFixed(3));
+            }
+
+            if (flags.fadeopacity !== undefined) {
+                var fadeopacity = parseFloat(flags.fadeopacity);
+                if (isNaN(fadeopacity) || fadeopacity < 0 || fadeopacity > 1.0) {
+                    stderr.push("Error: --fadeopacity must be between 0.0 and 1.0");
+                    return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                }
+                scanlines.fadeOpacity = fadeopacity;
+                customAdjustments = true;
+                stdout.push("Fade opacity set to " + fadeopacity.toFixed(2));
+            }
+
+            if (flags.brightness !== undefined) {
+                var brightness = parseFloat(flags.brightness);
+                if (isNaN(brightness) || brightness < 0.1 || brightness > 1.5) {
+                    stderr.push("Error: --brightness must be between 0.1 and 1.5");
+                    return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                }
+                scanlines.brightness = brightness;
+                customAdjustments = true;
+                stdout.push("Brightness set to " + brightness.toFixed(2));
+            }
+
+            if (flags.temperature !== undefined) {
+                var temperature = parseFloat(flags.temperature);
+                if (isNaN(temperature) || temperature < 0.1 || temperature > 5.0) {
+                    stderr.push("Error: --temperature must be between 0.1 and 5.0");
+                    return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                }
+                scanlines.colorTemperature = temperature;
+                customAdjustments = true;
+                stdout.push("Color temperature set to " + temperature.toFixed(2));
+            }
+
+            if (flags.chroma !== undefined) {
+                var chroma = parseFloat(flags.chroma);
+                if (isNaN(chroma) || chroma < 0 || chroma > 3.0) {
+                    stderr.push("Error: --chroma must be between 0.0 and 3.0");
+                    return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                }
+                scanlines.chromaShift = chroma;
+                customAdjustments = true;
+                stdout.push("Chromatic aberration set to " + chroma.toFixed(2));
+            }
+
+            if (flags.noise !== undefined) {
+                var noise = parseFloat(flags.noise);
+                if (isNaN(noise) || noise < 0 || noise > 1.0) {
+                    stderr.push("Error: --noise must be between 0.0 and 1.0");
+                    return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                }
+                scanlines.noiseAmount = noise;
+                customAdjustments = true;
+                stdout.push("Noise/grain set to " + noise.toFixed(3));
+            }
+
+            if (flags.glow !== undefined) {
+                var glow = parseFloat(flags.glow);
+                if (isNaN(glow) || glow < 0 || glow > 3.0) {
+                    stderr.push("Error: --glow must be between 0.0 and 3.0");
+                    return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                }
+                scanlines.glowAmount = glow;
+                customAdjustments = true;
+                stdout.push("Phosphor glow set to " + glow.toFixed(2));
+                if (glow > 2.0) {
+                    stdout.push("⚠ Warning: High glow values may wash out fine detail");
+                }
+            }
+
+            if (flags.glowspread !== undefined) {
+                var glowspread = parseFloat(flags.glowspread);
+                if (isNaN(glowspread) || glowspread < 0 || glowspread > 1.0) {
+                    stderr.push("Error: --glowspread must be between 0.0 and 1.0");
+                    return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                }
+                scanlines.glowSpread = glowspread;
+                customAdjustments = true;
+                stdout.push("Glow spread set to " + glowspread.toFixed(2));
+            }
+
+            if (flags.zoom !== undefined) {
+                var zoom = parseFloat(flags.zoom);
+                if (isNaN(zoom) || zoom < 1.0 || zoom > 1.2) {
+                    stderr.push("Error: --zoom must be between 1.0 and 1.2");
+                    return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                }
+                scanlines.zoomFactor = zoom;
+                customAdjustments = true;
+                stdout.push("Zoom factor set to " + zoom.toFixed(2));
+            }
+
+            if (presetApplied || customAdjustments) {
+                if (customAdjustments) {
+                    scanlines.currentPreset = "custom";
+                }
+                scanlines.saveSettings();
+
+                stdout.push("");
+                stdout.push("✓ Settings applied and saved");
+                stdout.push("Effect is " + (scanlines.enabled ? "ENABLED" : "DISABLED"));
+
+                if (customAdjustments && presetApplied) {
+                    stdout.push("Note: Custom adjustments override preset values");
+                }
+
+                return {
+                    stdout: stdout,
+                    stderr: [],
+                    exitCode: 0,
+                    sideEffects: {}
+                };
+            }
+
+            if (args.length === 0 && Object.keys(flags).length === 0) {
+                stdout.push("CRT/SCANLINE - Enhanced CRT Effect Control");
+                stdout.push(repeatString("=", 70));
+                stdout.push("");
+                stdout.push("Current state: " + (scanlines.enabled ? "ENABLED ✓" : "DISABLED ✗"));
+                stdout.push("Current preset: " + scanlines.currentPreset);
+                if (scanlines.curvatureAmount > 0) {
+                    stdout.push("⚠ Curvature: " + scanlines.curvatureAmount.toFixed(3) + " (active)");
+                }
+                stdout.push("");
+                stdout.push("QUICK COMMANDS");
+                stdout.push("  scanline on/off/toggle    Control effect");
+                stdout.push("  scanline status           View all settings");
+                stdout.push("  scanline list             List all presets");
+                stdout.push("  scanline <preset>         Apply preset");
+                stdout.push("  scanline --help           Full documentation");
+                stdout.push("");
+                stdout.push("PRESETS: vhs, retro, terminal, arcade, minimal, subtle");
+                stdout.push("HINT: Try 'scanline retro' or 'scanline arcade' for curved CRT!");
+
+                return {
+                    stdout: stdout,
+                    stderr: [],
+                    exitCode: 0,
+                    sideEffects: {}
+                };
+            }
+
+            stderr.push("Error: unknown scanline command or option");
+            stderr.push("Use 'scanline --help' for usage information");
+
+            return {
+                stdout: [],
+                stderr: stderr,
+                exitCode: 1,
+                sideEffects: {}
+            };
+        }
+    });

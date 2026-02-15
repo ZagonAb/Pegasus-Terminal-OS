@@ -35,7 +35,7 @@ QtObject {
             var sessionDuration = formatSessionDuration();
 
             return "[SESSION:" + kernel.currentUser + "@T" + sessionDuration +
-            "][PATH:" + displayPath + "]> ";
+            "][" + displayPath + "]> ";
         } else {
             var stateName = getStateName(kernel.bootState);
             return "[SESSION:system][STATE:" + stateName + "]> ";

@@ -333,19 +333,28 @@ neofetch [options]
 ---
 
 #### `stats` - Gaming Statistics
-**Description:** Display comprehensive gaming statistics.
+**Description:** Display comprehensive gaming statistics with optional ASCII visualization.
 
 **Usage:**
-```bash
-stats
-```
+- `stats`                - Quick text output
+- `stats -a`             - ASCII graphics mode
+- `stats --ascii-true`   - ASCII graphics mode (alternative)
 
 **Statistics Included:**
 - Library size and favorites count
 - Play statistics (games played, total launches)
 - Total and average play time
-- Last played game with detailed timing
+- Top 5 games by playtime (ASCII mode only)
+- Last played game with detailed timing, global index, and collection
 - Rating statistics
+
+**Display Modes:**
+- **Normal mode** (`stats`): Fast, clean text output
+- **ASCII mode** (`stats -a` or `stats --ascii-true`): Enhanced visualization with:
+  - Box-drawn frames and sections
+  - Progress bars for percentages
+  - Top 5 games table with playtime rankings
+  - Visual dashboard layout
 
 **Aliases:** `stat`, `statistics`
 
@@ -612,7 +621,111 @@ theme reset font
 
 ---
 
-### 11. Utility Commands
+### 11. `scanline` - Enhanced CRT Effect Control
+
+**Description:** Advanced CRT/scanline overlay system with full interface distortion. Applies authentic CRT effects including scanlines, curvature, chromatic aberration, phosphor glow, and VHS tape distortion to all UI elements. All settings are saved automatically and persist across sessions.
+
+**Aliases:** `crt`, `scan`
+
+**Usage:**
+```bash
+scanline [command] [options]
+```
+
+**Commands:**
+- `on` - Enable CRT effect
+- `off` - Disable CRT effect
+- `toggle` - Toggle effect on/off
+- `status` - Show current settings and parameters
+- `reset` - Reset all settings to factory defaults
+- `default` - Apply default preset
+- `list`, `presets` - List all available presets
+- `<preset_name>` - Apply a specific preset
+
+**Available Presets:**
+- `default` - Clean balanced CRT (no curve)
+- `vhs` - VHS tape with heavy distortion & chromatic aberration
+- `retro` - Classic 90s gaming monitor
+
+**Basic Parameters:**
+- `--intensity <0.0-0.3>` - Scanline darkness (default: 0.01)
+- `--count <800-2000>` - Number of scanlines (default: 1600)
+- `--curvature <0.0-1.0>` - Screen barrel distortion (default: 0.0)
+  - Affects entire interface! 0.2-0.4 recommended
+- `--flicker <0.0-1.0>` - Screen flicker amount (default: 0.0)
+- `--fade <0.0-0.1>` - Edge fade softness (default: 0.0)
+  - Controls smooth brightness fade at curved edges
+- `--fadeopacity <0.0-1.0>` - Edge fade color blend (default: 0.0)
+  - 0.0=fade to black, 1.0=fade to theme color
+
+**Quality Parameters:**
+- `--brightness <0.1-1.5>` - Overall brightness (default: 1.0)
+- `--temperature <0.1-5.0>` - Color warmth, higher=warmer (default: 1.0)
+- `--chroma <0.0-3.0>` - Chromatic aberration/RGB shift (default: 0.0)
+- `--noise <0.0-1.0>` - Film grain/noise amount (default: 0.0)
+- `--glow <0.0-3.0>` - Phosphor glow/bloom on bright elements (default: 0.0)
+  - Simulates CRT phosphor bloom around lit text
+- `--glowspread <0.0-1.0>` - Glow spread/saturation (default: 0.0)
+  - 0.0=soft diffuse halo, 1.0=solid bright core
+- `--zoom <1.0-1.2>` - Screen zoom for curvature (default: 1.0)
+
+**VHS Effect:**
+- `--vhs <0.0-1.0>` - VHS tape distortion effect (default: 0.0)
+  - Adds authentic VHS artifacts:
+    - Horizontal tracking errors and shifts
+    - Color bleeding and banding
+    - Tracking noise lines
+    - Vertical jitter and instability
+    - Additional chromatic aberration
+    - Warm color temperature shift
+  - 0.0 = off, 0.3-0.5 = subtle, 1.0 = maximum
+  - Independent from 'vhs' preset - can be combined with any preset!
+
+**Examples:**
+```bash
+# Apply a preset
+scanline retro
+scanline vhs
+
+# Enable/disable effect
+scanline on
+scanline toggle
+
+# VHS distortion effect
+scanline --vhs 0.5
+scanline retro --vhs 0.3    
+scanline --vhs 1.0
+scanline default --vhs 0.4
+
+# Custom settings
+scanline --intensity=0.15 --curvature=0.2
+scanline --intensity=0.0 --count=1800
+scanline retro --intensity=0.12 --vhs=0.4
+
+# View current configuration
+scanline status
+scanline list
+
+# Fine-tune appearance
+scanline --temperature=1.1 --chroma=0.8 --brightness=0.95
+scanline --glow=1.5 --glowspread=0.3 --vhs=0.2
+```
+
+**Notes:**
+- Effect is OFF by default on first run
+- Curvature distorts the ENTIRE interface (ShaderEffectSource)
+- Edge fade creates smooth blend at curved borders (no hard edges)
+- VHS effect is independent from 'vhs' preset and can be combined with any settings
+- All settings persist across sessions via api.memory
+- Changes apply instantly without restart
+- Higher curvature values may affect readability
+- High VHS values (≥0.7) create heavy distortion
+- Use `reset` if experiencing visual issues
+- Custom adjustments override preset values and mark preset as "custom"
+
+---
+
+### 12. Utility Commands
 
 #### `help` - Command Help
 **Description:** Display help information for commands.

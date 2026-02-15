@@ -102,6 +102,496 @@ function registerTerminalCommands(kernel) {
         }
     });
 
+    CommandRegistry.register(kernel, "scanline", {
+        help: "Control enhanced CRT/scanline effects. Use 'scanline --help' for details",
+        usage: "scanline [on|off|toggle|status|reset|default] [options]",
+        minArgs: 0,
+        maxArgs: 30,
+        aliases: ["crt", "scan"],
+        requiredState: kernel.states.SHELL,
+        requiredAuth: true,
+        execute: function (args, flags) {
+            var stdout = [];
+            var stderr = [];
+
+            function getScanlines() {
+                if (typeof root !== 'undefined' && root.scanlines) {
+                    return root.scanlines;
+                }
+                return null;
+            }
+
+            var scanlines = getScanlines();
+            if (!scanlines) {
+                stderr.push("Error: Scanline system not available");
+                return {
+                    stdout: [],
+                    stderr: stderr,
+                    exitCode: 1,
+                    sideEffects: {}
+                };
+            }
+
+            if (flags.help) {
+                stdout.push("SCANLINE - Enhanced CRT Effect Control");
+                stdout.push(repeatString("=", 70));
+                stdout.push("");
+                stdout.push("DESCRIPTION");
+                stdout.push("  Advanced CRT/scanline overlay with full interface distortion.");
+                stdout.push("  Applies authentic CRT curvature to ALL UI elements (text, graphics, etc.)");
+                stdout.push("  All changes are applied immediately and saved automatically.");
+                stdout.push("");
+                stdout.push("USAGE");
+                stdout.push("  scanline [command] [options]");
+                stdout.push("");
+                stdout.push("COMMANDS");
+                stdout.push("  on                  Enable CRT effect");
+                stdout.push("  off                 Disable CRT effect");
+                stdout.push("  toggle              Toggle effect on/off");
+                stdout.push("  status              Show current settings and parameters");
+                stdout.push("  reset               Reset all settings to factory defaults");
+                stdout.push("  default             Apply default preset");
+                stdout.push("  list, presets       List all available presets");
+                stdout.push("");
+                stdout.push("PRESETS");
+                stdout.push("  Apply predefined CRT configurations:");
+                stdout.push("  scanline <preset>   Apply preset (see list below)");
+                stdout.push("");
+                stdout.push("  Available presets:");
+                stdout.push("    default    - Clean balanced CRT (no curve)");
+                stdout.push("    vhs        - VHS tape with heavy distortion & chromatic aberration");
+                stdout.push("    retro      - Classic 90s gaming monitor");
+                stdout.push("");
+                stdout.push("BASIC PARAMETERS");
+                stdout.push("  --intensity <0.0-0.3>   Scanline darkness (default: 0.01)");
+                stdout.push("  --count <800-2000>      Number of scanlines (default: 1600)");
+                stdout.push("  --curvature <0.0-1.0>   Screen barrel distortion (default: 0.0)");
+                stdout.push("                          Affects entire interface! 0.2-0.4 recommended");
+                stdout.push("  --flicker <0.0-1.0>     Screen flicker amount (default: 0.0)");
+                stdout.push("  --fade <0.0-0.1>        Edge fade softness (default: 0.0)");
+                stdout.push("                          Controls smooth brightness fade at curved edges");
+                stdout.push("  --fadeopacity <0.0-1.0> Edge fade color blend (default: 0.0)");
+                stdout.push("                          0.0=fade to black, 1.0=fade to theme color");
+                stdout.push("");
+                stdout.push("QUALITY PARAMETERS");
+                stdout.push("  --brightness <0.1-1.5>  Overall brightness (default: 1.0)");
+                stdout.push("  --temperature <0.1-5.0> Color warmth - higher=warmer (default: 1.0)");
+                stdout.push("  --chroma <0.0-3.0>      Chromatic aberration/RGB shift (default: 0.0)");
+                stdout.push("  --noise <0.0-1.0>       Film grain/noise amount (default: 0.0)");
+                stdout.push("  --glow <0.0-3.0>        Phosphor glow/bloom on bright elements (default: 0.0)");
+                stdout.push("                          Simulates CRT phosphor bloom around lit text");
+                stdout.push("  --glowspread <0.0-1.0>  Glow spread/saturation (default: 0.0)");
+                stdout.push("                          0.0=soft diffuse halo, 1.0=solid bright core");
+                stdout.push("  --zoom <1.0-1.2>        Screen zoom for curvature (default: 1.0)");
+                stdout.push("");
+                stdout.push("VHS EFFECT");
+                stdout.push("  --vhs <0.0-1.0>         VHS tape distortion effect (default: 0.0)");
+                stdout.push("                          Adds authentic VHS artifacts:");
+                stdout.push("                          • Horizontal tracking errors and shifts");
+                stdout.push("                          • Color bleeding and banding");
+                stdout.push("                          • Tracking noise lines");
+                stdout.push("                          • Vertical jitter and instability");
+                stdout.push("                          • Additional chromatic aberration");
+                stdout.push("                          • Warm color temperature shift");
+                stdout.push("                          0.0 = off, 0.3-0.5 = subtle, 1.0 = maximum");
+                stdout.push("");
+                stdout.push("ALIASES");
+                stdout.push("  crt, scan");
+                stdout.push("");
+                stdout.push("NOTES");
+                stdout.push("  • Effect is OFF by default on first run");
+                stdout.push("  • Curvature distorts the ENTIRE interface (ShaderEffectSource)");
+                stdout.push("  • Edge fade creates smooth blend at curved borders (no hard edges)");
+                stdout.push("  • VHS effect is independent from 'vhs' preset - can be combined!");
+                stdout.push("  • All settings persist across sessions (api.memory)");
+                stdout.push("  • Changes apply instantly without restart");
+                stdout.push("  • Higher curvature values may affect readability");
+                stdout.push("  • Use 'reset' if experiencing visual issues");
+
+                return {
+                    stdout: stdout,
+                    stderr: [],
+                    exitCode: 0,
+                    sideEffects: {}
+                };
+            }
+
+            if (args.length > 0 && (args[0] === "list" || args[0] === "presets")) {
+                stdout.push("AVAILABLE CRT/SCANLINE PRESETS");
+                stdout.push(repeatString("=", 70));
+                stdout.push("");
+
+                var presets = [
+                    { name: "default",  desc: "Clean balanced CRT",
+                        specs: "I:0.01 C:1600 Curv:0.0 Fade:0.0 FadeOp:0.0 Zoom:1.0" },
+                        { name: "vhs",      desc: "VHS tape aesthetic",
+                            specs: "I:0.15 C:1400 Curv:0.25 Temp:1.15 Chroma:1.5 Fade:0.04" },
+                            { name: "retro",    desc: "90s gaming monitor",
+                                specs: "I:0.12 C:1500 Curv:0.15 Temp:1.08 Chroma:0.8 Fade:0.03" }
+                ];
+
+                var currentPreset = scanlines.currentPreset;
+
+                for (var i = 0; i < presets.length; i++) {
+                    var p = presets[i];
+                    var marker = p.name === currentPreset ? " [*]" : "    ";
+                    stdout.push(marker + padRight(p.name, 12) + " - " + p.desc);
+                    stdout.push("      " + p.specs);
+                }
+
+                stdout.push("");
+                stdout.push("Apply with: scanline <preset_name>");
+                stdout.push("View details: scanline status");
+                stdout.push("");
+                stdout.push("TIP: Use --vhs flag for additional VHS tape distortion!");
+
+                return {
+                    stdout: stdout,
+                    stderr: [],
+                    exitCode: 0,
+                    sideEffects: {}
+                };
+            }
+
+            if (args.length > 0 && args[0] === "status") {
+                stdout.push("CURRENT SCANLINE SETTINGS");
+                stdout.push(repeatString("=", 70));
+                stdout.push("");
+                stdout.push("Status:          " + (scanlines.enabled ? "ENABLED ✓" : "DISABLED ✗"));
+                stdout.push("Current preset:  " + scanlines.currentPreset);
+                stdout.push("");
+                stdout.push("BASIC PARAMETERS");
+                stdout.push("  Scanline intensity:  " + scanlines.scanlineIntensity.toFixed(3));
+                stdout.push("  Scanline count:      " + scanlines.scanlineCount.toFixed(0));
+                stdout.push("  Screen curvature:    " + scanlines.curvatureAmount.toFixed(3) + (scanlines.curvatureAmount > 0 ? " ⚠" : ""));
+                stdout.push("  Flicker amount:      " + scanlines.flickerAmount.toFixed(3));
+                stdout.push("  Edge fade:           " + scanlines.edgeSoftness.toFixed(3));
+                stdout.push("  Fade opacity:        " + scanlines.fadeOpacity.toFixed(2));
+                stdout.push("");
+                stdout.push("QUALITY PARAMETERS");
+                stdout.push("  Brightness:          " + scanlines.brightness.toFixed(2));
+                stdout.push("  Color temperature:   " + scanlines.colorTemperature.toFixed(2));
+                stdout.push("  Chromatic shift:     " + scanlines.chromaShift.toFixed(2));
+                stdout.push("  Noise/grain:         " + scanlines.noiseAmount.toFixed(3));
+                stdout.push("  Phosphor glow:       " + scanlines.glowAmount.toFixed(2));
+                stdout.push("  Glow spread:         " + scanlines.glowSpread.toFixed(2));
+                stdout.push("  Zoom factor:         " + scanlines.zoomFactor.toFixed(2));
+                stdout.push("");
+                stdout.push("VHS EFFECT");
+                stdout.push("  VHS distortion:      " + scanlines.vhsEffect.toFixed(2) + (scanlines.vhsEffect > 0 ? " ✓" : ""));
+                if (scanlines.vhsEffect > 0) {
+                    stdout.push("    Active effects: tracking errors, color bleeding, noise lines");
+                }
+                stdout.push("");
+                stdout.push("Use 'scanline --help' for parameter ranges and descriptions");
+
+                return {
+                    stdout: stdout,
+                    stderr: [],
+                    exitCode: 0,
+                    sideEffects: {}
+                };
+            }
+
+            if (args.length > 0 && args[0] === "reset") {
+                scanlines.applyPreset("default");
+                scanlines.enabled = false;
+                scanlines.saveSettings();
+
+                stdout.push("✓ All settings reset to factory defaults");
+                stdout.push("  Effect is now DISABLED");
+                stdout.push("  All parameters restored to baseline values");
+                stdout.push("  VHS effect reset to 0.0");
+
+                return {
+                    stdout: stdout,
+                    stderr: [],
+                    exitCode: 0,
+                    sideEffects: {}
+                };
+            }
+
+            if (args.length > 0 && args[0] === "on") {
+                scanlines.enabled = true;
+                scanlines.saveSettings();
+                stdout.push("✓ CRT effect ENABLED");
+                return {
+                    stdout: stdout,
+                    stderr: [],
+                    exitCode: 0,
+                    sideEffects: {}
+                };
+            }
+
+            if (args.length > 0 && args[0] === "off") {
+                scanlines.enabled = false;
+                scanlines.saveSettings();
+                stdout.push("✓ CRT effect DISABLED");
+                return {
+                    stdout: stdout,
+                    stderr: [],
+                    exitCode: 0,
+                    sideEffects: {}
+                };
+            }
+
+            if (args.length > 0 && args[0] === "toggle") {
+                scanlines.enabled = !scanlines.enabled;
+                scanlines.saveSettings();
+                stdout.push("✓ CRT effect " + (scanlines.enabled ? "ENABLED" : "DISABLED"));
+                return {
+                    stdout: stdout,
+                    stderr: [],
+                    exitCode: 0,
+                    sideEffects: {}
+                };
+            }
+
+            var validPresets = ["default", "vhs", "retro"];
+            var presetApplied = false;
+            var customAdjustments = false;
+
+            if (args.length > 0 && validPresets.indexOf(args[0]) !== -1) {
+                scanlines.applyPreset(args[0]);
+                presetApplied = true;
+                stdout.push("✓ Applied preset: " + args[0]);
+            }
+
+            if (flags.intensity !== undefined) {
+                var intensity = parseFloat(flags.intensity);
+                if (isNaN(intensity) || intensity < 0 || intensity > 0.3) {
+                    stderr.push("Error: --intensity must be between 0.0 and 0.3");
+                    return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                }
+                scanlines.scanlineIntensity = intensity;
+                customAdjustments = true;
+                stdout.push("Scanline intensity set to " + intensity.toFixed(3));
+            }
+
+            if (flags.count !== undefined) {
+                var count = parseFloat(flags.count);
+                if (isNaN(count) || count < 800 || count > 2000) {
+                    stderr.push("Error: --count must be between 800 and 2000");
+                    return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                }
+                scanlines.scanlineCount = count;
+                customAdjustments = true;
+                stdout.push("Scanline count set to " + count.toFixed(0));
+            }
+
+            if (flags.curvature !== undefined) {
+                var curvature = parseFloat(flags.curvature);
+                if (isNaN(curvature) || curvature < 0 || curvature > 1.0) {
+                    stderr.push("Error: --curvature must be between 0.0 and 1.0");
+                    return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                }
+                scanlines.curvatureAmount = curvature;
+                customAdjustments = true;
+                stdout.push("Curvature set to " + curvature.toFixed(3));
+                if (curvature > 0.4) {
+                    stdout.push("⚠ Warning: High curvature may affect UI readability");
+                }
+            }
+
+            if (flags.flicker !== undefined) {
+                var flicker = parseFloat(flags.flicker);
+                if (isNaN(flicker) || flicker < 0 || flicker > 1.0) {
+                    stderr.push("Error: --flicker must be between 0.0 and 1.0");
+                    return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                }
+                scanlines.flickerAmount = flicker;
+                customAdjustments = true;
+                stdout.push("Flicker amount set to " + flicker.toFixed(3));
+            }
+
+            if (flags.fade !== undefined) {
+                var fade = parseFloat(flags.fade);
+                if (isNaN(fade) || fade < 0 || fade > 0.1) {
+                    stderr.push("Error: --fade must be between 0.0 and 0.1");
+                    return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                }
+                scanlines.edgeSoftness = fade;
+                customAdjustments = true;
+                stdout.push("Edge fade set to " + fade.toFixed(3));
+            }
+
+            if (flags.fadeopacity !== undefined) {
+                var fadeopacity = parseFloat(flags.fadeopacity);
+                if (isNaN(fadeopacity) || fadeopacity < 0 || fadeopacity > 1.0) {
+                    stderr.push("Error: --fadeopacity must be between 0.0 and 1.0");
+                    return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                }
+                scanlines.fadeOpacity = fadeopacity;
+                customAdjustments = true;
+                stdout.push("Fade opacity set to " + fadeopacity.toFixed(2));
+            }
+
+            if (flags.brightness !== undefined) {
+                var brightness = parseFloat(flags.brightness);
+                if (isNaN(brightness) || brightness < 0.1 || brightness > 1.5) {
+                    stderr.push("Error: --brightness must be between 0.1 and 1.5");
+                    return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                }
+                scanlines.brightness = brightness;
+                customAdjustments = true;
+                stdout.push("Brightness set to " + brightness.toFixed(2));
+            }
+
+            if (flags.temperature !== undefined) {
+                var temperature = parseFloat(flags.temperature);
+                if (isNaN(temperature) || temperature < 0.1 || temperature > 5.0) {
+                    stderr.push("Error: --temperature must be between 0.1 and 5.0");
+                    return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                }
+                scanlines.colorTemperature = temperature;
+                customAdjustments = true;
+                stdout.push("Color temperature set to " + temperature.toFixed(2));
+            }
+
+            if (flags.chroma !== undefined) {
+                var chroma = parseFloat(flags.chroma);
+                if (isNaN(chroma) || chroma < 0 || chroma > 3.0) {
+                    stderr.push("Error: --chroma must be between 0.0 and 3.0");
+                    return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                }
+                scanlines.chromaShift = chroma;
+                customAdjustments = true;
+                stdout.push("Chromatic aberration set to " + chroma.toFixed(2));
+            }
+
+            if (flags.noise !== undefined) {
+                var noise = parseFloat(flags.noise);
+                if (isNaN(noise) || noise < 0 || noise > 1.0) {
+                    stderr.push("Error: --noise must be between 0.0 and 1.0");
+                    return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                }
+                scanlines.noiseAmount = noise;
+                customAdjustments = true;
+                stdout.push("Noise/grain set to " + noise.toFixed(3));
+            }
+
+            if (flags.glow !== undefined) {
+                var glow = parseFloat(flags.glow);
+                if (isNaN(glow) || glow < 0 || glow > 3.0) {
+                    stderr.push("Error: --glow must be between 0.0 and 3.0");
+                    return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                }
+                scanlines.glowAmount = glow;
+                customAdjustments = true;
+                stdout.push("Phosphor glow set to " + glow.toFixed(2));
+                if (glow > 2.0) {
+                    stdout.push("⚠ Warning: High glow values may wash out fine detail");
+                }
+            }
+
+            if (flags.glowspread !== undefined) {
+                var glowspread = parseFloat(flags.glowspread);
+                if (isNaN(glowspread) || glowspread < 0 || glowspread > 1.0) {
+                    stderr.push("Error: --glowspread must be between 0.0 and 1.0");
+                    return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                }
+                scanlines.glowSpread = glowspread;
+                customAdjustments = true;
+                stdout.push("Glow spread set to " + glowspread.toFixed(2));
+            }
+
+            if (flags.zoom !== undefined) {
+                var zoom = parseFloat(flags.zoom);
+                if (isNaN(zoom) || zoom < 1.0 || zoom > 1.2) {
+                    stderr.push("Error: --zoom must be between 1.0 and 1.2");
+                    return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                }
+                scanlines.zoomFactor = zoom;
+                customAdjustments = true;
+                stdout.push("Zoom factor set to " + zoom.toFixed(2));
+            }
+
+            if (flags.vhs !== undefined) {
+                var vhs = parseFloat(flags.vhs);
+                if (isNaN(vhs) || vhs < 0.0 || vhs > 1.0) {
+                    stderr.push("Error: --vhs must be between 0.0 and 1.0");
+                    return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                }
+                scanlines.vhsEffect = vhs;
+                customAdjustments = true;
+                stdout.push("VHS distortion set to " + vhs.toFixed(2));
+                if (vhs > 0) {
+                    stdout.push("  Effects active: tracking errors, color bleeding, noise lines");
+                }
+                if (vhs >= 0.7) {
+                    stdout.push("⚠ Warning: High VHS values create heavy distortion");
+                }
+            }
+
+            if (presetApplied || customAdjustments) {
+                if (customAdjustments) {
+                    scanlines.currentPreset = "custom";
+                }
+                scanlines.saveSettings();
+
+                stdout.push("");
+                stdout.push("✓ Settings applied and saved");
+                stdout.push("Effect is " + (scanlines.enabled ? "ENABLED" : "DISABLED"));
+
+                if (customAdjustments && presetApplied) {
+                    stdout.push("Note: Custom adjustments override preset values");
+                }
+
+                return {
+                    stdout: stdout,
+                    stderr: [],
+                    exitCode: 0,
+                    sideEffects: {}
+                };
+            }
+
+            if (args.length === 0 && Object.keys(flags).length === 0) {
+                stdout.push("CRT/SCANLINE - Enhanced CRT Effect Control");
+                stdout.push(repeatString("=", 70));
+                stdout.push("");
+                stdout.push("Current state: " + (scanlines.enabled ? "ENABLED ✓" : "DISABLED ✗"));
+                stdout.push("Current preset: " + scanlines.currentPreset);
+                if (scanlines.curvatureAmount > 0) {
+                    stdout.push("⚠ Curvature: " + scanlines.curvatureAmount.toFixed(3) + " (active)");
+                }
+                if (scanlines.vhsEffect > 0) {
+                    stdout.push("📼 VHS effect: " + scanlines.vhsEffect.toFixed(2) + " (active)");
+                }
+                stdout.push("");
+                stdout.push("QUICK COMMANDS");
+                stdout.push("  scanline on/off/toggle    Control effect");
+                stdout.push("  scanline status           View all settings");
+                stdout.push("  scanline list             List all presets");
+                stdout.push("  scanline <preset>         Apply preset");
+                stdout.push("  scanline --vhs <0.0-1.0>  VHS tape distortion");
+                stdout.push("  scanline --help           Full documentation");
+                stdout.push("");
+                stdout.push("PRESETS: vhs, retro");
+                stdout.push("HINT: Try 'scanline retro' for curved CRT!");
+                stdout.push("      Try 'scanline --vhs 0.5' for authentic VHS tape look!");
+
+                return {
+                    stdout: stdout,
+                    stderr: [],
+                    exitCode: 0,
+                    sideEffects: {}
+                };
+            }
+
+            stderr.push("Error: unknown scanline command or option");
+            stderr.push("Use 'scanline --help' for usage information");
+
+            return {
+                stdout: [],
+                stderr: stderr,
+                exitCode: 1,
+                sideEffects: {}
+            };
+        }
+    });
+
+
+
     CommandRegistry.register(kernel, "clear", {
         help: "Clear the terminal screen",
         usage: "clear",
@@ -2144,15 +2634,15 @@ function registerTerminalCommands(kernel) {
 
     CommandRegistry.register(kernel, "stats", {
         help: "Show gaming statistics",
-        usage: "stats",
+        usage: "stats [-a|--ascii-true]",
         minArgs: 0,
-        maxArgs: 0,
+        maxArgs: 1,
         aliases: ["stat", "statistics"],
         requiredState: kernel.states.SHELL,
         requiredAuth: true,
         execute: function (args, flags) {
             var stdout = [];
-
+            var asciiMode = flags.a || flags['ascii-true'] || false;
             var totalGames = api.allGames.count;
             var totalPlayTime = 0;
             var totalPlayCount = 0;
@@ -2161,6 +2651,7 @@ function registerTerminalCommands(kernel) {
             var gamesPlayed = 0;
             var lastPlayedGame = null;
             var lastPlayedDate = 0;
+            var lastPlayedIndex = -1;
 
             for (var i = 0; i < api.allGames.count; i++) {
                 var game = api.allGames.get(i);
@@ -2183,6 +2674,7 @@ function registerTerminalCommands(kernel) {
                 if (game.lastPlayed && game.lastPlayed > lastPlayedDate) {
                     lastPlayedDate = game.lastPlayed;
                     lastPlayedGame = game;
+                    lastPlayedIndex = i;
                 }
             }
 
@@ -2199,59 +2691,231 @@ function registerTerminalCommands(kernel) {
 
             var avgPlayTime = gamesWithPlaytime > 0 ? totalPlayTime / gamesWithPlaytime : 0;
 
-            stdout.push("GLOBAL STATISTICS - " + kernel.currentUser);
-            stdout.push(repeatString("=", 40));
-            stdout.push("");
-
-            stdout.push("Library:");
-            stdout.push("  Total games: " + totalGames);
-            stdout.push("  Favorite games: " + favoriteCount);
-            if (ratedGames > 0) {
-                stdout.push("  Average rating: " + Math.round(avgRating * 100) + "%");
-                stdout.push("  Games rated: " + ratedGames);
+            function createAsciiBar(value, maxValue, barWidth) {
+                barWidth = barWidth || 40;
+                var percentage = maxValue > 0 ? (value / maxValue) : 0;
+                var filledWidth = Math.round(percentage * barWidth);
+                var bar = "[";
+                for (var i = 0; i < barWidth; i++) {
+                    if (i < filledWidth) {
+                        bar += "█";
+                    } else {
+                        bar += "░";
+                    }
+                }
+                bar += "] " + Math.round(percentage * 100) + "%";
+                return bar;
             }
 
-            stdout.push("");
+            function formatPlayTime(seconds) {
+                var hours = Math.floor(seconds / 3600);
+                var minutes = Math.floor((seconds % 3600) / 60);
 
-            stdout.push("Play Statistics:");
-            stdout.push("  Games played: " + gamesPlayed);
-            stdout.push("  Total launches: " + totalPlayCount);
-
-            var totalHours = Math.floor(totalPlayTime / 3600);
-            var totalMinutes = Math.floor((totalPlayTime % 3600) / 60);
-            stdout.push("  Total play time: " + totalHours + "h " + totalMinutes + "m");
-
-            if (gamesWithPlaytime > 0) {
-                var avgHours = Math.floor(avgPlayTime / 3600);
-                var avgMinutes = Math.floor((avgPlayTime % 3600) / 60);
-                stdout.push("  Average per game: " + avgHours + "h " + avgMinutes + "m");
-            }
-
-            if (lastPlayedGame) {
-                stdout.push("");
-                stdout.push("Last Played:");
-                stdout.push("  Game: " + lastPlayedGame.title);
-
-                var lastDate = new Date(lastPlayedGame.lastPlayed);
-                var dateStr = lastDate.toLocaleDateString();
-                var timeStr = lastDate.toLocaleTimeString();
-                stdout.push("  Date: " + dateStr + " at " + timeStr);
-
-                var now = new Date();
-                var diffMs = now - lastDate;
-                var diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-                var diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-
-                if (diffDays > 0) {
-                    stdout.push("  Time ago: " + diffDays + " day" + (diffDays !== 1 ? "s" : "") +
-                    " and " + diffHours + " hour" + (diffHours !== 1 ? "s" : ""));
-                } else if (diffHours > 0) {
-                    var diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-                    stdout.push("  Time ago: " + diffHours + " hour" + (diffHours !== 1 ? "s" : "") +
-                    " and " + diffMinutes + " minute" + (diffMinutes !== 1 ? "s" : ""));
+                if (hours >= 1000) {
+                    return hours + "h " + minutes + "m";
+                } else if (hours > 0) {
+                    return padRight(hours + "h " + minutes + "m", 10);
                 } else {
-                    var diffMinutes = Math.floor(diffMs / (1000 * 60));
-                    stdout.push("  Time ago: " + diffMinutes + " minute" + (diffMinutes !== 1 ? "s" : ""));
+                    return padRight(minutes + "m", 10);
+                }
+            }
+
+            if (asciiMode) {
+                stdout.push("╔═══════════════════════════════════════════════════════════════╗");
+                stdout.push("           GLOBAL STATISTICS - " + padRight(kernel.currentUser, 28));
+                stdout.push("╚═══════════════════════════════════════════════════════════════╝");
+                stdout.push("");
+
+                stdout.push("┌─ LIBRARY ─────────────────────────────────────────────────────┐");
+                stdout.push("│");
+                stdout.push("│  Total Games:     " + padRight(totalGames.toString(), 42));
+
+                if (totalGames > 0) {
+                    var playedPercentage = totalGames > 0 ? (gamesPlayed / totalGames) : 0;
+                    stdout.push("│  Games Played:    " + gamesPlayed + " / " + totalGames);
+                    stdout.push("│  " + createAsciiBar(gamesPlayed, totalGames, 50));
+                    stdout.push("│");
+
+                    var favoritePercentage = totalGames > 0 ? (favoriteCount / totalGames) : 0;
+                    stdout.push("│  Favorites:       " + favoriteCount + " / " + totalGames);
+                    stdout.push("│  " + createAsciiBar(favoriteCount, totalGames, 50));
+                }
+
+                if (ratedGames > 0) {
+                    stdout.push("│");
+                    stdout.push("│  Average Rating:  " + Math.round(avgRating * 100) + "%");
+                    stdout.push("│  " + createAsciiBar(avgRating, 1, 50));
+                    stdout.push("│  Games Rated:     " + ratedGames + " / " + totalGames);
+                }
+                stdout.push("│");
+                stdout.push("└───────────────────────────────────────────────────────────────┘");
+                stdout.push("");
+
+                stdout.push("┌─ PLAY STATISTICS ─────────────────────────────────────────────┐");
+                stdout.push("│");
+
+                var totalHours = Math.floor(totalPlayTime / 3600);
+                var totalMinutes = Math.floor((totalPlayTime % 3600) / 60);
+                stdout.push("│  Total Launches:  " + padRight(totalPlayCount.toString(), 42));
+                stdout.push("│  Total Play Time: " + totalHours + "h " + totalMinutes + "m" + padRight("", 34));
+
+                if (gamesWithPlaytime > 0) {
+                    var avgHours = Math.floor(avgPlayTime / 3600);
+                    var avgMinutes = Math.floor((avgPlayTime % 3600) / 60);
+                    stdout.push("│  Avg per Game:    " + avgHours + "h " + avgMinutes + "m" + padRight("", 34));
+                }
+
+                stdout.push("│");
+
+                if (totalPlayTime > 0) {
+                    stdout.push("│  Top 5 Games by Playtime:");
+                    stdout.push("│");
+
+                    var gamesArray = [];
+                    for (var i = 0; i < api.allGames.count; i++) {
+                        var game = api.allGames.get(i);
+                        if (game.playTime && game.playTime > 0) {
+                            gamesArray.push({
+                                title: game.title,
+                                playTime: game.playTime
+                            });
+                        }
+                    }
+
+                    gamesArray.sort(function(a, b) { return b.playTime - a.playTime; });
+                    var topGames = gamesArray.slice(0, 5);
+
+                    stdout.push("│  ┌────┬──────────────────────────┬────────────┐");
+                    stdout.push("│  │ #  │ Title                    │ Playtime   │");
+                    stdout.push("│  ├────┼──────────────────────────┼────────────┤");
+
+                    for (var i = 0; i < topGames.length; i++) {
+                        var gameTitle = topGames[i].title.length > 24 ?
+                        topGames[i].title.substring(0, 21) + "..." :
+                        topGames[i].title;
+                        var position = padRight((i + 1).toString(), 2);
+                        var titlePadded = padRight(gameTitle, 24);
+                        var timePadded = formatPlayTime(topGames[i].playTime);
+
+                        stdout.push("│  │ " + position + " │ " + titlePadded + " │ " + timePadded + " │");
+                    }
+
+                    stdout.push("│  └────┴──────────────────────────┴────────────┘");
+                }
+
+                stdout.push("│");
+                stdout.push("└───────────────────────────────────────────────────────────────┘");
+                stdout.push("");
+
+                if (lastPlayedGame) {
+                    stdout.push("┌─ LAST PLAYED ─────────────────────────────────────────────────┐");
+                    stdout.push("│");
+
+                    var gameTitle = lastPlayedGame.title.length > 55 ?
+                    lastPlayedGame.title.substring(0, 52) + "..." :
+                    lastPlayedGame.title;
+                    stdout.push("│  Game:       " + padRight(gameTitle, 48));
+                    stdout.push("│  Index:      #" + padRight(lastPlayedIndex.toString(), 47));
+
+                    var collectionName = "Unknown";
+                    if (lastPlayedGame.collections && lastPlayedGame.collections.count > 0) {
+                        collectionName = lastPlayedGame.collections.get(0).name;
+                    }
+                    var collectionDisplay = collectionName.length > 45 ?
+                    collectionName.substring(0, 42) + "..." :
+                    collectionName;
+                    stdout.push("│  Collection: " + padRight(collectionDisplay, 48));
+
+                    var lastDate = new Date(lastPlayedGame.lastPlayed);
+                    var dateStr = lastDate.toLocaleDateString();
+                    var timeStr = lastDate.toLocaleTimeString();
+                    stdout.push("│  Date:       " + padRight(dateStr + " at " + timeStr, 48));
+
+                    var now = new Date();
+                    var diffMs = now - lastDate;
+                    var diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                    var diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+
+                    var timeAgo = "";
+                    if (diffDays > 0) {
+                        timeAgo = diffDays + " day" + (diffDays !== 1 ? "s" : "") +
+                        " and " + diffHours + " hour" + (diffHours !== 1 ? "s" : "");
+                    } else if (diffHours > 0) {
+                        var diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+                        timeAgo = diffHours + " hour" + (diffHours !== 1 ? "s" : "") +
+                        " and " + diffMinutes + " minute" + (diffMinutes !== 1 ? "s" : "");
+                    } else {
+                        var diffMinutes = Math.floor(diffMs / (1000 * 60));
+                        timeAgo = diffMinutes + " minute" + (diffMinutes !== 1 ? "s" : "");
+                    }
+                    stdout.push("│  Time Ago:   " + padRight(timeAgo, 48) + "│");
+
+                    stdout.push("│");
+                    stdout.push("└───────────────────────────────────────────────────────────────┘");
+                }
+
+            } else {
+                stdout.push("GLOBAL STATISTICS - " + kernel.currentUser);
+                stdout.push(repeatString("=", 40));
+                stdout.push("");
+
+                stdout.push("Library:");
+                stdout.push("  Total games: " + totalGames);
+                stdout.push("  Favorite games: " + favoriteCount);
+                if (ratedGames > 0) {
+                    stdout.push("  Average rating: " + Math.round(avgRating * 100) + "%");
+                    stdout.push("  Games rated: " + ratedGames);
+                }
+
+                stdout.push("");
+
+                stdout.push("Play Statistics:");
+                stdout.push("  Games played: " + gamesPlayed);
+                stdout.push("  Total launches: " + totalPlayCount);
+
+                var totalHours = Math.floor(totalPlayTime / 3600);
+                var totalMinutes = Math.floor((totalPlayTime % 3600) / 60);
+                stdout.push("  Total play time: " + totalHours + "h " + totalMinutes + "m");
+
+                if (gamesWithPlaytime > 0) {
+                    var avgHours = Math.floor(avgPlayTime / 3600);
+                    var avgMinutes = Math.floor((avgPlayTime % 3600) / 60);
+                    stdout.push("  Average per game: " + avgHours + "h " + avgMinutes + "m");
+                }
+
+                if (lastPlayedGame) {
+                    stdout.push("");
+                    stdout.push("Last Played:");
+                    stdout.push("  Game: " + lastPlayedGame.title);
+                    stdout.push("  Index: #" + lastPlayedIndex);
+
+                    var collectionName = "Unknown";
+                    if (lastPlayedGame.collections && lastPlayedGame.collections.count > 0) {
+                        collectionName = lastPlayedGame.collections.get(0).name;
+                    }
+                    stdout.push("  Collection: " + collectionName);
+
+                    var lastDate = new Date(lastPlayedGame.lastPlayed);
+                    var dateStr = lastDate.toLocaleDateString();
+                    var timeStr = lastDate.toLocaleTimeString();
+                    stdout.push("  Date: " + dateStr + " at " + timeStr);
+
+                    var now = new Date();
+                    var diffMs = now - lastDate;
+                    var diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                    var diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+
+                    if (diffDays > 0) {
+                        stdout.push("  Time ago: " + diffDays + " day" + (diffDays !== 1 ? "s" : "") +
+                        " and " + diffHours + " hour" + (diffHours !== 1 ? "s" : ""));
+                    } else if (diffHours > 0) {
+                        var diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+                        stdout.push("  Time ago: " + diffHours + " hour" + (diffHours !== 1 ? "s" : "") +
+                        " and " + diffMinutes + " minute" + (diffMinutes !== 1 ? "s" : ""));
+                    } else {
+                        var diffMinutes = Math.floor(diffMs / (1000 * 60));
+                        stdout.push("  Time ago: " + diffMinutes + " minute" + (diffMinutes !== 1 ? "s" : ""));
+                    }
                 }
             }
 
@@ -2623,8 +3287,8 @@ function registerTerminalCommands(kernel) {
     });
 
     CommandRegistry.register(kernel, "theme", {
-        help: "Manage terminal theme, color schemes, prompt styles and fonts",
-        usage: "theme [list|set <scheme>|prompt [list|set <style>|current|reset]|font [list|set <font>|current|reset]|current|reset]",
+        help: "Manage terminal theme, color schemes, prompt styles, fonts and font size",
+        usage: "theme [list|set <scheme>|prompt [list|set <style>|current|reset]|font [list|set <font>|current|reset] [--size=<8-32>]|current|reset]",
         minArgs: 0,
         maxArgs: 4,
         aliases: ["colors", "scheme"],
@@ -2677,39 +3341,58 @@ function registerTerminalCommands(kernel) {
                 { name: "specialelite", displayName: "Special Elite",  description: "Vintage typewriter aesthetic" },
                 { name: "synemono",     displayName: "Syne Mono",      description: "Modern geometric monospace" },
                 { name: "vt323",        displayName: "VT323",          description: "Classic CRT terminal font" },
-                { name: "terminus",     displayName: "Terminus",        description: "Clean bitmap font for terminals" },
-                { name: "ubuntumono",   displayName: "Ubuntu Mono",     description: "Ubuntu's monospace companion font" },
-                { name: "cascadiacode", displayName: "Cascadia Code",   description: "Microsoft's coding font with ligatures" },
-                { name: "ibmplexmono",  displayName: "IBM Plex Mono",   description: "IBM's modern monospace typeface" }
+                { name: "terminus",     displayName: "Terminus",       description: "Clean bitmap font for terminals" },
+                { name: "ubuntumono",   displayName: "Ubuntu Mono",    description: "Ubuntu's monospace companion font" },
+                { name: "cascadiacode", displayName: "Cascadia Code",  description: "Microsoft's coding font with ligatures" },
+                { name: "ibmplexmono",  displayName: "IBM Plex Mono",  description: "IBM's modern monospace typeface" }
             ];
 
             if (args.length === 0) {
                 stdout.push("THEME MANAGER");
-                stdout.push(repeatString("=", 40));
+                stdout.push(repeatString("=", 70));
                 stdout.push("");
-                stdout.push("Usage:");
+                stdout.push("DESCRIPTION");
+                stdout.push("  Manage terminal appearance: color schemes, prompt styles, fonts and font size.");
+                stdout.push("  All changes are applied immediately and saved automatically.");
+                stdout.push("");
+                stdout.push("USAGE");
+                stdout.push("  theme [command] [options]");
+                stdout.push("");
+                stdout.push("COLOR SCHEMES");
                 stdout.push("  theme list                    - List available color schemes");
                 stdout.push("  theme set <scheme>            - Set active color scheme");
                 stdout.push("  theme current                 - Show current settings");
                 stdout.push("  theme reset                   - Reset color scheme to default");
                 stdout.push("");
+                stdout.push("PROMPT STYLES");
                 stdout.push("  theme prompt list             - List available prompt styles");
                 stdout.push("  theme prompt set <style>      - Set prompt style");
                 stdout.push("  theme prompt current          - Show current prompt style");
                 stdout.push("  theme prompt reset            - Reset prompt to default style");
                 stdout.push("");
+                stdout.push("FONTS & SIZE");
                 stdout.push("  theme font list               - List available fonts");
                 stdout.push("  theme font set <font>         - Set terminal font");
-                stdout.push("  theme font current            - Show current font");
+                stdout.push("  theme font current            - Show current font and size");
                 stdout.push("  theme font reset              - Reset font to default");
+                stdout.push("  theme font --size=<8-32>      - Change font size only");
                 stdout.push("");
-                stdout.push("Examples:");
-                stdout.push("  theme set cyberpunk           - Change to Cyberpunk color scheme");
-                stdout.push("  theme prompt set arrow        - Change to arrow prompt style");
-                stdout.push("  theme font set vt323          - Change to VT323 retro font");
-                stdout.push("  theme font set pressstart2p   - Change to 8-bit arcade font");
+                stdout.push("EXAMPLES");
+                stdout.push("  theme set cyberpunk            - Cyberpunk color scheme");
+                stdout.push("  theme prompt set arrow         - Arrow prompt style");
+                stdout.push("  theme font set vt323           - VT323 retro font");
+                stdout.push("  theme font --size=20           - Change to 20 vpx (keeps current font)");
+                stdout.push("  theme font set firacode --size=18 - Change font AND size together");
+                stdout.push("  theme font current             - Show current font configuration");
                 stdout.push("");
-                stdout.push("Aliases: colors, scheme");
+                stdout.push("SIZE REFERENCE");
+                stdout.push("  8-12  : Small (compact mode)");
+                stdout.push("  14-18 : Normal (default: 16)");
+                stdout.push("  20-26 : Large (better readability)");
+                stdout.push("  28-32 : Extra large (accessibility)");
+                stdout.push("");
+                stdout.push("ALIASES");
+                stdout.push("  colors, scheme");
 
                 return {
                     stdout: stdout,
@@ -2720,6 +3403,17 @@ function registerTerminalCommands(kernel) {
             }
 
             var subcommand = args[0].toLowerCase();
+
+            if (flags.size !== undefined && subcommand !== "font") {
+                stderr.push("Error: --size flag can only be used with 'theme font'");
+                stderr.push("Usage: theme font --size=<8-32>");
+                return {
+                    stdout: [],
+                    stderr: stderr,
+                    exitCode: 1,
+                    sideEffects: {}
+                };
+            }
 
             if (subcommand === "prompt") {
                 if (args.length < 2) {
@@ -2737,7 +3431,7 @@ function registerTerminalCommands(kernel) {
 
                 if (promptCmd === "list" || promptCmd === "ls") {
                     stdout.push("AVAILABLE PROMPT STYLES");
-                    stdout.push(repeatString("=", 40));
+                    stdout.push(repeatString("=", 70));
                     stdout.push("");
 
                     var currentPrompt = api.memory.get("terminal_prompt_style") || "default";
@@ -2773,7 +3467,7 @@ function registerTerminalCommands(kernel) {
                     }
 
                     stdout.push("CURRENT PROMPT STYLE");
-                    stdout.push(repeatString("=", 40));
+                    stdout.push(repeatString("=", 70));
                     stdout.push("");
 
                     if (promptInfo) {
@@ -2885,9 +3579,46 @@ function registerTerminalCommands(kernel) {
             }
 
             if (subcommand === "font") {
+                if (flags.size !== undefined && (args.length === 1 || (args.length === 2 && args[1] === "size"))) {
+                    var newSize = parseInt(flags.size);
+                    if (isNaN(newSize) || newSize < 8 || newSize > 32) {
+                        stderr.push("Error: --size must be between 8 and 32 vpx");
+                        return {
+                            stdout: [],
+                            stderr: stderr,
+                            exitCode: 1,
+                            sideEffects: {}
+                        };
+                    }
+
+                    var currentFont = api.memory.get("terminal_font") || "default";
+                    api.memory.set("terminal_font_size", newSize);
+
+                    var fontInfo = null;
+                    for (var i = 0; i < availableFonts.length; i++) {
+                        if (availableFonts[i].name === currentFont) {
+                            fontInfo = availableFonts[i];
+                            break;
+                        }
+                    }
+
+                    stdout.push("Font size changed to: " + newSize + " vpx");
+                    stdout.push("Current font: " + (fontInfo ? fontInfo.displayName : currentFont));
+                    stdout.push("Changes applied immediately!");
+
+                    return {
+                        stdout: stdout,
+                        stderr: [],
+                        exitCode: 0,
+                        sideEffects: {
+                            reloadFont: true
+                        }
+                    };
+                }
+
                 if (args.length < 2) {
                     stderr.push("Error: font subcommand required");
-                    stderr.push("Usage: theme font [list|set <font>|current|reset]");
+                    stderr.push("Usage: theme font [list|set <font>|current|reset] [--size=<8-32>]");
                     return {
                         stdout: [],
                         stderr: stderr,
@@ -2900,10 +3631,11 @@ function registerTerminalCommands(kernel) {
 
                 if (fontCmd === "list" || fontCmd === "ls") {
                     stdout.push("AVAILABLE FONTS");
-                    stdout.push(repeatString("=", 40));
+                    stdout.push(repeatString("=", 70));
                     stdout.push("");
 
                     var currentFont = api.memory.get("terminal_font") || "default";
+                    var currentSize = api.memory.get("terminal_font_size") || 16;
 
                     for (var i = 0; i < availableFonts.length; i++) {
                         var f = availableFonts[i];
@@ -2913,8 +3645,22 @@ function registerTerminalCommands(kernel) {
                     }
 
                     stdout.push("");
-                    stdout.push("Current font: " + currentFont);
-                    stdout.push("Use 'theme font set <font>' to change");
+                    stdout.push("FONT SIZE");
+                    stdout.push(repeatString("-", 70));
+                    stdout.push("Current size: " + currentSize + " vpx");
+                    stdout.push("Range: 8-32 vpx (default: 16)");
+                    stdout.push("");
+                    stdout.push("USAGE");
+                    stdout.push("  theme font set <font>              - Change font only");
+                    stdout.push("  theme font --size=<N>              - Change size only");
+                    stdout.push("  theme font set <font> --size=<N>   - Change both font and size");
+                    stdout.push("");
+                    stdout.push("EXAMPLES");
+                    stdout.push("  theme font set vt323                - VT323 font");
+                    stdout.push("  theme font --size=20                - 20 vpx size (keeps current font)");
+                    stdout.push("  theme font set firacode --size=18   - Fira Code at 18 vpx");
+                    stdout.push("  theme font current                  - Show current configuration");
+                    stdout.push("  theme font reset                    - Reset to default font (size unchanged)");
 
                     return {
                         stdout: stdout,
@@ -2926,6 +3672,7 @@ function registerTerminalCommands(kernel) {
 
                 if (fontCmd === "current" || fontCmd === "show") {
                     var currentFont = api.memory.get("terminal_font") || "default";
+                    var currentSize = api.memory.get("terminal_font_size") || 16;
                     var fontInfo = null;
 
                     for (var i = 0; i < availableFonts.length; i++) {
@@ -2935,17 +3682,26 @@ function registerTerminalCommands(kernel) {
                         }
                     }
 
-                    stdout.push("CURRENT FONT");
-                    stdout.push(repeatString("=", 40));
+                    stdout.push("CURRENT FONT CONFIGURATION");
+                    stdout.push(repeatString("=", 70));
                     stdout.push("");
 
                     if (fontInfo) {
-                        stdout.push("Name: " + fontInfo.displayName);
-                        stdout.push("ID:   " + fontInfo.name);
-                        stdout.push("Desc: " + fontInfo.description);
+                        stdout.push("Font Name: " + fontInfo.displayName);
+                        stdout.push("Font ID:   " + fontInfo.name);
+                        stdout.push("Font Size: " + currentSize + " vpx");
+                        stdout.push("Description: " + fontInfo.description);
                     } else {
-                        stdout.push("Font: " + currentFont);
+                        stdout.push("Font ID:   " + currentFont);
+                        stdout.push("Font Size: " + currentSize + " vpx");
                     }
+
+                    stdout.push("");
+                    stdout.push("Size reference:");
+                    stdout.push("  8-12  : Small (compact)");
+                    stdout.push("  14-18 : Normal (default: 16)");
+                    stdout.push("  20-26 : Large");
+                    stdout.push("  28-32 : Extra large");
 
                     return {
                         stdout: stdout,
@@ -2956,8 +3712,9 @@ function registerTerminalCommands(kernel) {
                 }
 
                 if (fontCmd === "reset") {
-                    api.memory.set("terminal_font", "default");
-                    stdout.push("Font reset to default");
+                    api.memory.unset("terminal_font");
+                    stdout.push("Font reset to default (Default Mono)");
+                    stdout.push("Font size unchanged: " + (api.memory.get("terminal_font_size") || 16) + " vpx");
                     stdout.push("Changes applied immediately!");
 
                     return {
@@ -2973,7 +3730,7 @@ function registerTerminalCommands(kernel) {
                 if (fontCmd === "set") {
                     if (args.length < 3) {
                         stderr.push("Error: font name required");
-                        stderr.push("Usage: theme font set <font>");
+                        stderr.push("Usage: theme font set <font> [--size=<8-32>]");
                         stderr.push("Use 'theme font list' to see available fonts");
 
                         return {
@@ -3010,11 +3767,22 @@ function registerTerminalCommands(kernel) {
 
                     api.memory.set("terminal_font", newFont);
                     stdout.push("Font changed to: " + fontDisplayName);
+
+                    if (flags.size !== undefined) {
+                        var newSize = parseInt(flags.size);
+                        if (isNaN(newSize) || newSize < 8 || newSize > 32) {
+                            stderr.push("Warning: --size must be between 8 and 32 vpx. Size unchanged.");
+                        } else {
+                            api.memory.set("terminal_font_size", newSize);
+                            stdout.push("Font size set to: " + newSize + " vpx");
+                        }
+                    }
+
                     stdout.push("Changes applied immediately!");
 
                     return {
                         stdout: stdout,
-                        stderr: [],
+                        stderr: stderr.length > 0 ? stderr : [],
                         exitCode: 0,
                         sideEffects: {
                             reloadFont: true
@@ -3035,7 +3803,7 @@ function registerTerminalCommands(kernel) {
 
             if (subcommand === "list" || subcommand === "ls") {
                 stdout.push("AVAILABLE COLOR SCHEMES");
-                stdout.push(repeatString("=", 40));
+                stdout.push(repeatString("=", 70));
                 stdout.push("");
 
                 var currentScheme = api.memory.get("terminal_color_scheme") || "default";
@@ -3061,7 +3829,15 @@ function registerTerminalCommands(kernel) {
 
             if (subcommand === "current" || subcommand === "show") {
                 var currentScheme = api.memory.get("terminal_color_scheme") || "default";
+                var currentPrompt = api.memory.get("terminal_prompt_style") || "default";
+                var currentFont = api.memory.get("terminal_font") || "default";
+                var currentSize = api.memory.get("terminal_font_size") || 16;
 
+                stdout.push("CURRENT TERMINAL CONFIGURATION");
+                stdout.push(repeatString("=", 70));
+                stdout.push("");
+                stdout.push("COLOR SCHEME");
+                stdout.push(repeatString("-", 70));
                 var schemeInfo = null;
                 for (var i = 0; i < availableSchemes.length; i++) {
                     if (availableSchemes[i].name === currentScheme) {
@@ -3069,26 +3845,17 @@ function registerTerminalCommands(kernel) {
                         break;
                     }
                 }
-
-                stdout.push("CURRENT SETTINGS");
-                stdout.push(repeatString("=", 40));
-                stdout.push("");
-                stdout.push("COLOR SCHEME");
-                stdout.push(repeatString("-", 40));
-
                 if (schemeInfo) {
-                    stdout.push("Name: " + schemeInfo.displayName);
-                    stdout.push("ID:   " + schemeInfo.name);
-                    stdout.push("Desc: " + schemeInfo.description);
+                    stdout.push("  Name: " + schemeInfo.displayName);
+                    stdout.push("  ID:   " + schemeInfo.name);
+                    stdout.push("  Desc: " + schemeInfo.description);
                 } else {
-                    stdout.push("Scheme: " + currentScheme);
+                    stdout.push("  Scheme: " + currentScheme);
                 }
-
-                var currentPrompt = api.memory.get("terminal_prompt_style") || "default";
                 stdout.push("");
-                stdout.push("PROMPT STYLE");
-                stdout.push(repeatString("-", 40));
 
+                stdout.push("PROMPT STYLE");
+                stdout.push(repeatString("-", 70));
                 var promptInfo = null;
                 for (var i = 0; i < availablePromptStyles.length; i++) {
                     if (availablePromptStyles[i].name === currentPrompt) {
@@ -3096,19 +3863,16 @@ function registerTerminalCommands(kernel) {
                         break;
                     }
                 }
-
                 if (promptInfo) {
-                    stdout.push("Name: " + promptInfo.displayName);
-                    stdout.push("ID:   " + promptInfo.name);
+                    stdout.push("  Name: " + promptInfo.displayName);
+                    stdout.push("  ID:   " + promptInfo.name);
                 } else {
-                    stdout.push("Style: " + currentPrompt);
+                    stdout.push("  Style: " + currentPrompt);
                 }
-
-                var currentFont = api.memory.get("terminal_font") || "default";
                 stdout.push("");
-                stdout.push("FONT");
-                stdout.push(repeatString("-", 40));
 
+                stdout.push("FONT");
+                stdout.push(repeatString("-", 70));
                 var fontInfo = null;
                 for (var i = 0; i < availableFonts.length; i++) {
                     if (availableFonts[i].name === currentFont) {
@@ -3116,12 +3880,13 @@ function registerTerminalCommands(kernel) {
                         break;
                     }
                 }
-
                 if (fontInfo) {
-                    stdout.push("Name: " + fontInfo.displayName);
-                    stdout.push("ID:   " + fontInfo.name);
+                    stdout.push("  Name: " + fontInfo.displayName);
+                    stdout.push("  ID:   " + fontInfo.name);
+                    stdout.push("  Size: " + currentSize + " vpx");
                 } else {
-                    stdout.push("Font: " + currentFont);
+                    stdout.push("  Font: " + currentFont);
+                    stdout.push("  Size: " + currentSize + " vpx");
                 }
 
                 return {
@@ -3149,8 +3914,9 @@ function registerTerminalCommands(kernel) {
                 }
 
                 if (args.length > 1 && args[1].toLowerCase() === "font") {
-                    api.memory.set("terminal_font", "default");
-                    stdout.push("Font reset to default");
+                    api.memory.unset("terminal_font");
+                    stdout.push("Font reset to default (Default Mono)");
+                    stdout.push("Font size unchanged");
                     stdout.push("Changes applied immediately!");
 
                     return {

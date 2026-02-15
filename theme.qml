@@ -30,7 +30,18 @@ FocusScope {
     FontLoader { id: fontCascadiaCode;  source: "assets/fonts/cascadiacode/cascadiacode.ttf" }
     FontLoader { id: fontIBMPlexMono;   source: "assets/fonts/ibmplexmono/ibmplexmono.ttf" }
 
+    property var scanlines: null
     property string activeFontFamily: fontFamilyMap[activeFont] || global.fonts.mono
+
+    property real textGlowAmount: {
+        var saved = parseFloat(api.memory.get("scanline_glow") || "0");
+        return (isNaN(saved) || saved < 0) ? 0.0 : saved;
+    }
+
+    property real textGlowSpread: {
+        var saved = parseFloat(api.memory.get("scanline_glowspread") || "0");
+        return (isNaN(saved) || saved < 0) ? 0.0 : saved;
+    }
 
     property string activeColorSchemeName: {
         var saved = api.memory.get("terminal_color_scheme");
@@ -70,10 +81,17 @@ FocusScope {
         promptStyleLoader.source = "assets/prompt-styles/" + newStyle + ".qml";
     }
 
+    property int activeFontSize: {
+        var saved = api.memory.get("terminal_font_size");
+        return saved ? parseInt(saved) : 16;
+    }
+
     function reloadFont() {
         var newFont = api.memory.get("terminal_font") || "default";
-        console.log("[THEME] Reloading font: " + newFont);
+        var newSize = api.memory.get("terminal_font_size") || 16;
+        console.log("[THEME] Reloading font: " + newFont + " size: " + newSize + " vpx");
         activeFont = newFont;
+        activeFontSize = parseInt(newSize);
         activeFontFamily = fontFamilyMap[newFont] || root.activeFontFamily;
     }
 
@@ -174,13 +192,33 @@ FocusScope {
             if (savedFont !== activeFont) {
                 reloadFont();
             }
-        }
-    }
 
-    Scanlines {
-        id: scanlines
-        anchors.fill: parent
-        z: 1000
+            var savedFontSize = api.memory.get("terminal_font_size");
+            if (savedFontSize && parseInt(savedFontSize) !== activeFontSize) {
+                reloadFont();
+            }
+
+            var scanlineKeys = [
+                "scanline_enabled", "scanline_preset", "scanline_intensity",
+                "scanline_count", "scanline_flicker", "scanline_vignette",
+                "scanline_curvature", "scanline_brightness", "scanline_colortemp",
+                "scanline_chroma", "scanline_noise", "scanline_zoom", "scanline_glow",
+                "scanline_glowspread"
+            ];
+
+            if (scanlines) {
+                for (var i = 0; i < scanlineKeys.length; i++) {
+                    if (api.memory.get(scanlineKeys[i]) !== undefined) {
+                        scanlines.loadSettings();
+                        var savedGlow = parseFloat(api.memory.get("scanline_glow") || "0");
+                        root.textGlowAmount = (isNaN(savedGlow) || savedGlow < 0) ? 0.0 : savedGlow;
+                        var savedSpread = parseFloat(api.memory.get("scanline_glowspread") || "0");
+                        root.textGlowSpread = (isNaN(savedSpread) || savedSpread < 0) ? 0.0 : savedSpread;
+                        break;
+                    }
+                }
+            }
+        }
     }
 
     QtObject {
@@ -1140,90 +1178,90 @@ FocusScope {
             var inQuotes = false;
             var quoteChar = '';
 
-            for (var i = 0; i < input.length; i++) {
-                var c = input.charAt(i);
+    for (var i = 0; i < input.length; i++) {
+        var c = input.charAt(i);
 
-                if (inQuotes) {
-                    if (c === quoteChar) {
-                        inQuotes = false;
-                        if (currentToken !== "") {
-                            tokens.push(currentToken);
-                            currentToken = "";
-                        }
-                    } else {
-                        currentToken += c;
-                    }
-                } else {
-                    if (c === '"' || c === "'") {
-                        inQuotes = true;
-                        quoteChar = c;
-                        if (currentToken !== "") {
-                            tokens.push(currentToken);
-                            currentToken = "";
-                        }
-                    } else if (c === ' ' || c === '\t') {
-                        if (currentToken !== "") {
-                            tokens.push(currentToken);
-                            currentToken = "";
-                        }
-                    } else if (c === '|' || c === '>' || c === '<') {
-                        if (currentToken !== "") {
-                            tokens.push(currentToken);
-                        }
-                        tokens.push(c);
-                        currentToken = "";
-                    } else {
-                        currentToken += c;
-                    }
+        if (inQuotes) {
+            if (c === quoteChar) {
+                inQuotes = false;
+                if (currentToken !== "") {
+                    tokens.push(currentToken);
+                    currentToken = "";
                 }
+            } else {
+                currentToken += c;
             }
-
-            if (currentToken !== "") {
-                tokens.push(currentToken);
-            }
-
-            if (inQuotes) {
-                return { error: "Unclosed quotes" };
-            }
-
-            if (tokens.length === 0) {
-                return { error: "Empty command" };
-            }
-
-            var command = tokens[0];
-            var args = [];
-            var flags = {};
-
-            for (var j = 1; j < tokens.length; j++) {
-                var token = tokens[j];
-
-                if (token.indexOf("--") === 0) {
-                    var flagPart = token.substring(2);
-                    var equalsIndex = flagPart.indexOf("=");
-
-                    if (equalsIndex !== -1) {
-                        var flagName = flagPart.substring(0, equalsIndex);
-                        var flagValue = flagPart.substring(equalsIndex + 1);
-                        flags[flagName] = flagValue;
-                    } else {
-                        flags[flagPart] = true;
-                    }
-                } else if (token.indexOf("-") === 0) {
-                    var shortFlags = token.substring(1);
-                    for (var k = 0; k < shortFlags.length; k++) {
-                        flags[shortFlags.charAt(k)] = true;
-                    }
-                } else {
-                    args.push(token);
+        } else {
+            if (c === '"' || c === "'") {
+                inQuotes = true;
+                quoteChar = c;
+                if (currentToken !== "") {
+                    tokens.push(currentToken);
+                    currentToken = "";
                 }
+            } else if (c === ' ' || c === '\t') {
+                if (currentToken !== "") {
+                    tokens.push(currentToken);
+                    currentToken = "";
+                }
+            } else if (c === '|' || c === '>' || c === '<') {
+                if (currentToken !== "") {
+                    tokens.push(currentToken);
+                }
+                tokens.push(c);
+                currentToken = "";
+            } else {
+                currentToken += c;
             }
+        }
+    }
 
-            return {
-                command: command,
-                args: args,
-                flags: flags,
-                raw: input
-            };
+    if (currentToken !== "") {
+        tokens.push(currentToken);
+    }
+
+    if (inQuotes) {
+        return { error: "Unclosed quotes" };
+    }
+
+    if (tokens.length === 0) {
+        return { error: "Empty command" };
+    }
+
+    var command = tokens[0];
+    var args = [];
+    var flags = {};
+
+    for (var j = 1; j < tokens.length; j++) {
+        var token = tokens[j];
+
+        if (token.indexOf("--") === 0) {
+            var flagPart = token.substring(2);
+            var equalsIndex = flagPart.indexOf("=");
+
+            if (equalsIndex !== -1) {
+                var flagName = flagPart.substring(0, equalsIndex);
+                var flagValue = flagPart.substring(equalsIndex + 1);
+                flags[flagName] = flagValue;
+            } else {
+                flags[flagPart] = true;
+            }
+        } else if (token.indexOf("-") === 0) {
+            var shortFlags = token.substring(1);
+            for (var k = 0; k < shortFlags.length; k++) {
+                flags[shortFlags.charAt(k)] = true;
+            }
+        } else {
+            args.push(token);
+        }
+    }
+
+    return {
+        command: command,
+        args: args,
+        flags: flags,
+        raw: input
+    };
         }
 
         function getHistoryPrevious() {
@@ -1267,8 +1305,8 @@ FocusScope {
                 password_hash: hash,
                 salt: salt,
                 created: new Date().toISOString(),
-                last_login: null,
-                permissions: ["user"]
+                                                       last_login: null,
+                                                       permissions: ["user"]
             };
 
             api.memory.set("terminal_users", users);
@@ -1394,470 +1432,513 @@ FocusScope {
         }
 
         function setTimeout(func, delay) {
-             var timer = Qt.createQmlObject("import QtQuick 2.0; Timer {interval: " + delay + "; repeat: false; running: true;}", terminalKernel, "timeoutTimer");
-             timer.triggered.connect(function() {
-                 func();
-                 timer.destroy();
-             });
-             return timer;
+            var timer = Qt.createQmlObject("import QtQuick 2.0; Timer {interval: " + delay + "; repeat: false; running: true;}", terminalKernel, "timeoutTimer");
+            timer.triggered.connect(function() {
+                func();
+                timer.destroy();
+            });
+            return timer;
         }
     }
 
-    Rectangle {
-        id: terminalContainer
+    Item {
+        id: mainInterface
         anchors.fill: parent
-        color: root.currentColorScheme.backgroundColor
 
-        Flickable {
-            id: outputView
+        Rectangle {
+            id: terminalContainer
             anchors.fill: parent
-            anchors.bottomMargin: statusBar.height
+            color: root.currentColorScheme.backgroundColor
 
-            contentWidth: width
-            contentHeight: terminalColumn.height
-            clip: true
+            Flickable {
+                id: outputView
+                anchors.fill: parent
+                anchors.bottomMargin: statusBar.height
 
-            onContentHeightChanged: {
-                if (contentHeight > height) {
-                    contentY = contentHeight - height;
+                contentWidth: width
+                contentHeight: terminalColumn.height
+                clip: true
+
+                layer.enabled: root.textGlowAmount > 0.0
+                layer.smooth: true
+                layer.effect: Glow {
+                    radius: 6 + root.textGlowAmount * 6
+                    samples: 25
+                    color: "#33FFFFFF"
+                    spread: root.textGlowSpread
+                    transparentBorder: true
+                    cached: false
                 }
-            }
 
-            Column {
-                id: terminalColumn
-                width: parent.width
-                spacing: vpx(0)
-                x: vpx(10)
+                onContentHeightChanged: {
+                    if (contentHeight > height) {
+                        contentY = contentHeight - height;
+                    }
+                }
 
-                Repeater {
-                    id: terminalRepeater
-                    model: ListModel { id: terminalModel }
+                Column {
+                    id: terminalColumn
+                    width: parent.width
+                    spacing: vpx(0)
+                    x: vpx(10)
 
-                    delegate: Item {
-                        width: terminalColumn.width
-                        height: lineColumn.height
+                    Repeater {
+                        id: terminalRepeater
+                        model: ListModel { id: terminalModel }
 
-                        Column {
-                            id: lineColumn
-                            width: parent.width
-                            spacing: vpx(2)
+                        delegate: Item {
+                            width: terminalColumn.width
+                            height: lineColumn.height
 
-                            Item {
+                            Column {
+                                id: lineColumn
                                 width: parent.width
-                                height: Math.max(promptText.height, commandText.height, vpx(16))
-                                visible: model.prompt !== "" || model.command !== ""
+                                spacing: vpx(2)
 
-                                Row {
-                                    id: contentRow
-                                    spacing: vpx(0)
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    height: parent.height
-
-                                    Text {
-                                        id: promptText
-                                        text: model.prompt
-                                        color: model.isError ? root.currentColorScheme.promptErrorColor : root.currentColorScheme.promptColor
-                                        font.family: root.activeFontFamily
-                                        font.pixelSize: vpx(16)
-                                        anchors.verticalCenter: parent.verticalCenter
-                                    }
+                                Item {
+                                    width: parent.width
+                                    height: Math.max(promptText.height, commandText.height, vpx(16))
+                                    visible: model.prompt !== "" || model.command !== ""
 
                                     Row {
-                                        width: commandText.contentWidth + vpx(10)
+                                        id: contentRow
+                                        spacing: vpx(0)
+                                        anchors.verticalCenter: parent.verticalCenter
                                         height: parent.height
 
-                                        Row {
-                                            spacing: vpx(0)
+                                        Text {
+                                            id: promptText
+                                            text: model.prompt
+                                            color: model.isError ? root.currentColorScheme.promptErrorColor : root.currentColorScheme.promptColor
+                                            font.family: root.activeFontFamily
+                                            font.pixelSize: vpx(root.activeFontSize)
                                             anchors.verticalCenter: parent.verticalCenter
+                                        }
 
-                                            Text {
-                                                id: textBeforeCursor
-                                                text: {
-                                                    if (index !== terminalModel.count - 1 || terminalKernel.passwordMode) {
-                                                        return model.command;
-                                                    }
-                                                    var pos = commandInput.cursorPosition;
-                                                    return model.command.substring(0, pos);
-                                                }
-                                                color: root.currentColorScheme.textColor
-                                                font.family: root.activeFontFamily
-                                                font.pixelSize: vpx(16)
-                                                wrapMode: Text.NoWrap
-                                            }
+                                        Row {
+                                            width: commandText.contentWidth + vpx(10)
+                                            height: parent.height
 
-                                            Rectangle {
-                                                id: cursorRect
-                                                width: charUnderCursor.contentWidth > 0 ? charUnderCursor.contentWidth : vpx(8)
-                                                height: vpx(16)
-                                                color: root.currentColorScheme.cursorColor
-                                                visible: index === terminalModel.count - 1 && !terminalKernel.passwordMode
+                                            Row {
+                                                spacing: vpx(0)
                                                 anchors.verticalCenter: parent.verticalCenter
 
                                                 Text {
-                                                    id: charUnderCursor
-                                                    anchors.centerIn: parent
+                                                    id: textBeforeCursor
+                                                    text: {
+                                                        if (index !== terminalModel.count - 1 || terminalKernel.passwordMode) {
+                                                            return model.command;
+                                                        }
+                                                        var pos = commandInput.cursorPosition;
+                                                        return model.command.substring(0, pos);
+                                                    }
+                                                    color: root.currentColorScheme.textColor
+                                                    font.family: root.activeFontFamily
+                                                    font.pixelSize: vpx(root.activeFontSize)
+                                                    wrapMode: Text.NoWrap
+                                                }
+
+                                                Rectangle {
+                                                    id: cursorRect
+                                                    width: charUnderCursor.contentWidth > 0 ? charUnderCursor.contentWidth : vpx(root.activeFontSize/2)
+                                                    height: vpx(root.activeFontSize)
+                                                    color: root.currentColorScheme.cursorColor
+                                                    visible: index === terminalModel.count - 1 && !terminalKernel.passwordMode
+                                                    anchors.verticalCenter: parent.verticalCenter
+
+                                                    Text {
+                                                        id: charUnderCursor
+                                                        anchors.centerIn: parent
+                                                        text: {
+                                                            if (index !== terminalModel.count - 1 || terminalKernel.passwordMode) {
+                                                                return "";
+                                                            }
+                                                            var pos = commandInput.cursorPosition;
+                                                            if (pos >= model.command.length) {
+                                                                return " ";
+                                                            }
+                                                            return model.command.charAt(pos);
+                                                        }
+                                                        color: root.currentColorScheme.cursorTextColor
+                                                        font.family: root.activeFontFamily
+                                                        font.pixelSize: vpx(root.activeFontSize)
+                                                    }
+
+                                                    SequentialAnimation on opacity {
+                                                        loops: Animation.Infinite
+                                                        running: cursorRect.visible
+
+                                                        NumberAnimation {
+                                                            from: 1.0
+                                                            to: 0.3
+                                                            duration: 530
+                                                            easing.type: Easing.InOutQuad
+                                                        }
+
+                                                        PauseAnimation { duration: 200 }
+
+                                                        NumberAnimation {
+                                                            from: 0.3
+                                                            to: 1.0
+                                                            duration: 530
+                                                            easing.type: Easing.InOutQuad
+                                                        }
+
+                                                        PauseAnimation { duration: 200 }
+                                                    }
+                                                }
+
+                                                Text {
+                                                    id: textAfterCursor
                                                     text: {
                                                         if (index !== terminalModel.count - 1 || terminalKernel.passwordMode) {
                                                             return "";
                                                         }
+
                                                         var pos = commandInput.cursorPosition;
                                                         if (pos >= model.command.length) {
-                                                            return " ";
+                                                            return "";
                                                         }
-                                                        return model.command.charAt(pos);
+                                                        return model.command.substring(pos + 1);
                                                     }
-                                                    color: root.currentColorScheme.cursorTextColor
+                                                    color: root.currentColorScheme.textColor
                                                     font.family: root.activeFontFamily
-                                                    font.pixelSize: vpx(16)
-                                                }
-
-                                                SequentialAnimation on opacity {
-                                                    loops: Animation.Infinite
-                                                    running: cursorRect.visible
-
-                                                    NumberAnimation {
-                                                        from: 1.0
-                                                        to: 0.3
-                                                        duration: 530
-                                                        easing.type: Easing.InOutQuad
-                                                    }
-
-                                                    PauseAnimation { duration: 200 }
-
-                                                    NumberAnimation {
-                                                        from: 0.3
-                                                        to: 1.0
-                                                        duration: 530
-                                                        easing.type: Easing.InOutQuad
-                                                    }
-
-                                                    PauseAnimation { duration: 200 }
+                                                    font.pixelSize: vpx(root.activeFontSize)
+                                                    wrapMode: Text.NoWrap
                                                 }
                                             }
 
                                             Text {
-                                                id: textAfterCursor
-                                                text: {
-                                                    if (index !== terminalModel.count - 1 || terminalKernel.passwordMode) {
-                                                        return "";
-                                                    }
-
-                                                    var pos = commandInput.cursorPosition;
-                                                    if (pos >= model.command.length) {
-                                                        return "";
-                                                    }
-                                                    return model.command.substring(pos + 1);
-                                                }
+                                                id: commandText
+                                                text: model.command
                                                 color: root.currentColorScheme.textColor
                                                 font.family: root.activeFontFamily
-                                                font.pixelSize: vpx(16)
-                                                wrapMode: Text.NoWrap
+                                                font.pixelSize: vpx(root.activeFontSize)
+                                                visible: false
                                             }
-                                        }
-
-                                        Text {
-                                            id: commandText
-                                            text: model.command
-                                            color: root.currentColorScheme.textColor
-                                            font.family: root.activeFontFamily
-                                            font.pixelSize: vpx(16)
-                                            visible: false
                                         }
                                     }
                                 }
-                            }
 
-                            Text {
-                                width: parent.width
-                                text: model.result
-                                color: {
-                                    if (model.isError) return root.currentColorScheme.errorColor;
-                                    if (model.isSystem) return root.currentColorScheme.systemColor;
+                                Text {
+                                    width: parent.width
+                                    text: model.result
+                                    color: {
+                                        if (model.isError) return root.currentColorScheme.errorColor;
+                                        if (model.isSystem) return root.currentColorScheme.systemColor;
 
-                                    var line = text.trim();
+                                        var line = text.trim();
 
-                                    if (line === "Collections" ||
-                                        line === "MostPlayed" ||
-                                        line === "LastPlayed" ||
-                                        line === "Favorites" ||
-                                        line === "All-games" ||
-                                        line === "games" ||
-                                        line === "home" ||
-                                        line === "system") {
-                                        return root.currentColorScheme.directoryColor;
-                                        }
-
-                                        if (line.indexOf("Collections") === 0 ||
-                                            line.indexOf("MostPlayed") === 0 ||
-                                            line.indexOf("LastPlayed") === 0 ||
-                                            line.indexOf("Favorites") === 0 ||
-                                            line.indexOf("All-games") === 0 ||
-                                            line.indexOf("games") === 0) {
+                                        if (line === "Collections" ||
+                                            line === "MostPlayed" ||
+                                            line === "LastPlayed" ||
+                                            line === "Favorites" ||
+                                            line === "All-games" ||
+                                            line === "games" ||
+                                            line === "home" ||
+                                            line === "system") {
                                             return root.currentColorScheme.directoryColor;
                                             }
 
-                                            if (terminalKernel.cwd === "/Collections" && line.length > 0 && line !== "(empty directory)") {
+                                            if (line.indexOf("Collections") === 0 ||
+                                                line.indexOf("MostPlayed") === 0 ||
+                                                line.indexOf("LastPlayed") === 0 ||
+                                                line.indexOf("Favorites") === 0 ||
+                                                line.indexOf("All-games") === 0 ||
+                                                line.indexOf("games") === 0) {
                                                 return root.currentColorScheme.directoryColor;
-                                            }
+                                                }
 
-                                            return root.currentColorScheme.normalTextColor;
+                                                if (terminalKernel.cwd === "/Collections" && line.length > 0 && line !== "(empty directory)") {
+                                                    return root.currentColorScheme.directoryColor;
+                                                }
+
+                                                return root.currentColorScheme.normalTextColor;
+                                    }
+                                    font.family: root.activeFontFamily
+                                    font.pixelSize: vpx(root.activeFontSize)
+                                    wrapMode: Text.Wrap
+                                    visible: text !== ""
                                 }
-                                font.family: root.activeFontFamily
-                                font.pixelSize: vpx(16)
-                                wrapMode: Text.Wrap
-                                visible: text !== ""
                             }
                         }
                     }
                 }
-            }
 
-            function addNewPrompt() {
-                var promptText = "";
+                function addNewPrompt() {
+                    var promptText = "";
 
-                if (terminalKernel.bootState === terminalKernel.states.SHELL && terminalKernel.currentUser) {
-                    promptText = root.currentPromptStyle.generatePrompt(terminalKernel);
-                } else {
-                    promptText = root.currentPromptStyle.generateStatePrompt(terminalKernel);
-                }
-
-                terminalModel.append({
-                    prompt: promptText,
-                    command: "",
-                    result: "",
-                    isSystem: false,
-                    isError: false
-                });
-            }
-
-            function updateCurrentCommand(cmd) {
-                if (terminalModel.count > 0) {
-                    var lastIndex = terminalModel.count - 1;
-                    terminalModel.setProperty(lastIndex, "command", cmd);
-                }
-            }
-
-            function addResultToLast(output, isError, isSystem) {
-                if (terminalModel.count > 0) {
-                    var lastIndex = terminalModel.count - 1;
-                    var currentResult = terminalModel.get(lastIndex).result || "";
-                    var newResult = currentResult + (currentResult ? "\n" : "") + output;
-                    terminalModel.setProperty(lastIndex, "result", newResult);
-                    terminalModel.setProperty(lastIndex, "isError", isError || false);
-                    terminalModel.setProperty(lastIndex, "isSystem", isSystem || false);
-                }
-            }
-
-            MouseArea {
-                anchors.fill: parent
-                onWheel: {
-                    var delta = wheel.angleDelta.y;
-                    var newY = outputView.contentY - delta;
-
-                    if (newY < 0) newY = 0;
-                    if (newY > outputView.contentHeight - outputView.height) {
-                        newY = outputView.contentHeight - outputView.height;
-                    }
-
-                    outputView.contentY = newY;
-                    wheel.accepted = true;
-                }
-
-                onPressed: mouse.accepted = false
-            }
-        }
-
-        TextInput {
-            id: commandInput
-            anchors.fill: parent
-            visible: false
-            focus: true
-
-            echoMode: terminalKernel.passwordMode ? TextInput.Password : TextInput.Normal
-            passwordCharacter: "*"
-
-            onTextChanged: {
-                if (!terminalKernel.passwordMode) {
-                    outputView.updateCurrentCommand(text);
-                } else {
-                    outputView.updateCurrentCommand("*".repeat(text.length));
-                }
-            }
-
-            onCursorPositionChanged: {
-                if (terminalModel.count > 0 && !terminalKernel.passwordMode) {
-                    var lastIndex = terminalModel.count - 1;
-                    terminalModel.setProperty(lastIndex, "command", text);
-                }
-            }
-
-            onAccepted: {
-                var inputText = text.trim();
-
-                text = "";
-
-                if (inputText === "" && !terminalKernel.passwordMode) {
                     if (terminalKernel.bootState === terminalKernel.states.SHELL && terminalKernel.currentUser) {
-                        outputView.addNewPrompt();
+                        promptText = root.currentPromptStyle.generatePrompt(terminalKernel);
+                    } else {
+                        promptText = root.currentPromptStyle.generateStatePrompt(terminalKernel);
                     }
-                    return;
-                }
 
-                if (terminalKernel.bootState >= terminalKernel.states.USER_CREATION &&
-                    terminalKernel.bootState <= terminalKernel.states.LOGIN_PASSWORD) {
-
-                    var previousState = terminalKernel.bootState;
-
-                if (terminalKernel.passwordMode) {
-                    outputView.updateCurrentCommand("*".repeat(inputText.length));
-                } else {
-                    outputView.updateCurrentCommand(inputText);
-                }
-
-                var result = terminalKernel.executeCommand(inputText);
-
-                if (result.stdout && result.stdout.length > 0) {
-                    outputView.addResultToLast(result.stdout.join('\n'), false, true);
-                }
-                if (result.stderr && result.stderr.length > 0) {
-                    outputView.addResultToLast(result.stderr.join('\n'), true, false);
-                }
-
-                if (terminalKernel.bootState === terminalKernel.states.SHELL) {
-                    outputView.addNewPrompt();
-                } else if (terminalKernel.bootState !== previousState || terminalKernel.prompt !== "") {
                     terminalModel.append({
-                        prompt: terminalKernel.prompt,
+                        prompt: promptText,
                         command: "",
                         result: "",
                         isSystem: false,
                         isError: false
                     });
                 }
-                    } else {
-                        outputView.updateCurrentCommand(inputText);
 
-                        var result = terminalKernel.executeCommand(inputText);
+                function updateCurrentCommand(cmd) {
+                    if (terminalModel.count > 0) {
+                        var lastIndex = terminalModel.count - 1;
+                        terminalModel.setProperty(lastIndex, "command", cmd);
+                    }
+                }
 
-                        if (result.stdout && result.stdout.length > 0) {
-                            outputView.addResultToLast(result.stdout.join('\n'), false, false);
-                        }
-                        if (result.stderr && result.stderr.length > 0) {
-                            outputView.addResultToLast(result.stderr.join('\n'), true, false);
+                function addResultToLast(output, isError, isSystem) {
+                    if (terminalModel.count > 0) {
+                        var lastIndex = terminalModel.count - 1;
+                        var currentResult = terminalModel.get(lastIndex).result || "";
+                        var newResult = currentResult + (currentResult ? "\n" : "") + output;
+                        terminalModel.setProperty(lastIndex, "result", newResult);
+                        terminalModel.setProperty(lastIndex, "isError", isError || false);
+                        terminalModel.setProperty(lastIndex, "isSystem", isSystem || false);
+                    }
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    onWheel: {
+                        var delta = wheel.angleDelta.y;
+                        var newY = outputView.contentY - delta;
+
+                        if (newY < 0) newY = 0;
+                        if (newY > outputView.contentHeight - outputView.height) {
+                            newY = outputView.contentHeight - outputView.height;
                         }
 
-                        if (result.sideEffects) {
-                            if (result.sideEffects.reloadTheme) {
-                                root.reloadColorScheme();
-                            }
-                            if (result.sideEffects.reloadPrompt) {
-                                root.reloadPromptStyle();
-                            }
-                            if (result.sideEffects.reloadFont) {
-                                root.reloadFont();
-                            }
-                        }
-
-                        if (result.sideEffects && result.sideEffects.clearScreen) {
-                        } else {
-                            outputView.addNewPrompt();
-                        }
+                        outputView.contentY = newY;
+                        wheel.accepted = true;
                     }
 
-                    forceActiveFocus();
+                    onPressed: mouse.accepted = false
+                }
             }
 
-            Keys.onPressed: {
-                if (!terminalKernel.passwordMode) {
-                    if (event.key === Qt.Key_Tab) {
-                        event.accepted = true;
-                        var completed = terminalKernel.completeCommand(text);
-                        text = completed;
-                    } else if (event.key === Qt.Key_Up) {
-                        event.accepted = true;
-                        var prevCmd = terminalKernel.getHistoryPrevious();
-                        if (prevCmd !== undefined) {
-                            text = prevCmd;
-                        }
-                    } else if (event.key === Qt.Key_Down) {
-                        event.accepted = true;
-                        var nextCmd = terminalKernel.getHistoryNext();
-                        text = nextCmd !== undefined ? nextCmd : "";
-                    } else if (event.key === Qt.Key_L &&
-                        (event.modifiers & Qt.ControlModifier)) {
-                        event.accepted = true;
-                    terminalModel.clear();
-                    outputView.addNewPrompt();
+            TextInput {
+                id: commandInput
+                anchors.fill: parent
+                visible: false
+                focus: true
+
+                echoMode: terminalKernel.passwordMode ? TextInput.Password : TextInput.Normal
+                passwordCharacter: "*"
+
+                onTextChanged: {
+                    if (!terminalKernel.passwordMode) {
+                        outputView.updateCurrentCommand(text);
+                    } else {
+                        outputView.updateCurrentCommand("*".repeat(text.length));
+                    }
+                }
+
+                onCursorPositionChanged: {
+                    if (terminalModel.count > 0 && !terminalKernel.passwordMode) {
+                        var lastIndex = terminalModel.count - 1;
+                        terminalModel.setProperty(lastIndex, "command", text);
+                    }
+                }
+
+                onAccepted: {
+                    var inputText = text.trim();
+
                     text = "";
-                        } else if (event.key === Qt.Key_C &&
+
+                    if (inputText === "" && !terminalKernel.passwordMode) {
+                        if (terminalKernel.bootState === terminalKernel.states.SHELL && terminalKernel.currentUser) {
+                            outputView.addNewPrompt();
+                        }
+                        return;
+                    }
+
+                    if (terminalKernel.bootState >= terminalKernel.states.USER_CREATION &&
+                        terminalKernel.bootState <= terminalKernel.states.LOGIN_PASSWORD) {
+
+                        var previousState = terminalKernel.bootState;
+
+                    if (terminalKernel.passwordMode) {
+                        outputView.updateCurrentCommand("*".repeat(inputText.length));
+                    } else {
+                        outputView.updateCurrentCommand(inputText);
+                    }
+
+                    var result = terminalKernel.executeCommand(inputText);
+
+                    if (result.stdout && result.stdout.length > 0) {
+                        outputView.addResultToLast(result.stdout.join('\n'), false, true);
+                    }
+                    if (result.stderr && result.stderr.length > 0) {
+                        outputView.addResultToLast(result.stderr.join('\n'), true, false);
+                    }
+
+                    if (terminalKernel.bootState === terminalKernel.states.SHELL) {
+                        outputView.addNewPrompt();
+                    } else if (terminalKernel.bootState !== previousState || terminalKernel.prompt !== "") {
+                        terminalModel.append({
+                            prompt: terminalKernel.prompt,
+                            command: "",
+                            result: "",
+                            isSystem: false,
+                            isError: false
+                        });
+                    }
+                        } else {
+                            outputView.updateCurrentCommand(inputText);
+
+                            var result = terminalKernel.executeCommand(inputText);
+
+                            if (result.stdout && result.stdout.length > 0) {
+                                outputView.addResultToLast(result.stdout.join('\n'), false, false);
+                            }
+                            if (result.stderr && result.stderr.length > 0) {
+                                outputView.addResultToLast(result.stderr.join('\n'), true, false);
+                            }
+
+                            if (result.sideEffects) {
+                                if (result.sideEffects.reloadTheme) {
+                                    root.reloadColorScheme();
+                                }
+                                if (result.sideEffects.reloadPrompt) {
+                                    root.reloadPromptStyle();
+                                }
+                                if (result.sideEffects.reloadFont) {
+                                    root.reloadFont();
+                                }
+                            }
+
+                            if (result.sideEffects && result.sideEffects.clearScreen) {
+                            } else {
+                                outputView.addNewPrompt();
+                            }
+                        }
+
+                        forceActiveFocus();
+                }
+
+                Keys.onPressed: {
+                    if (!terminalKernel.passwordMode) {
+                        if (event.key === Qt.Key_Tab) {
+                            event.accepted = true;
+                            var completed = terminalKernel.completeCommand(text);
+                            text = completed;
+                        } else if (event.key === Qt.Key_Up) {
+                            event.accepted = true;
+                            var prevCmd = terminalKernel.getHistoryPrevious();
+                            if (prevCmd !== undefined) {
+                                text = prevCmd;
+                            }
+                        } else if (event.key === Qt.Key_Down) {
+                            event.accepted = true;
+                            var nextCmd = terminalKernel.getHistoryNext();
+                            text = nextCmd !== undefined ? nextCmd : "";
+                        } else if (event.key === Qt.Key_L &&
                             (event.modifiers & Qt.ControlModifier)) {
                             event.accepted = true;
-                        text = "";
-                        outputView.updateCurrentCommand("");
+                        terminalModel.clear();
                         outputView.addNewPrompt();
+                        text = "";
+                            } else if (event.key === Qt.Key_C &&
+                                (event.modifiers & Qt.ControlModifier)) {
+                                event.accepted = true;
+                            text = "";
+                            outputView.updateCurrentCommand("");
+                            outputView.addNewPrompt();
+                                }
+                    }
+                }
+            }
+
+            Rectangle {
+                id: statusBar
+                anchors.bottom: parent.bottom
+                anchors.left: parent.left
+                anchors.right: parent.right
+                height: vpx(20)
+                color: root.currentColorScheme.statusBarBackground
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.margins: vpx(2)
+                    anchors.leftMargin: vpx(10)
+                    anchors.rightMargin: vpx(10)
+
+
+                    spacing: vpx(10)
+
+                    Text {
+                        text: terminalKernel.currentUser || "guest"
+                        color: root.currentColorScheme.statusUserColor
+                        font.family: global.fonts.condensed
+                        font.pixelSize: vpx(12)
+                    }
+
+                    Text {
+                        text: {
+                            var path = terminalKernel.cwd;
+                            if (terminalKernel.getUserPath) {
+                                path = terminalKernel.getUserPath(terminalKernel.cwd);
                             }
+                            return path;
+                        }
+                        color: root.currentColorScheme.statusPathColor
+                        font.family: global.fonts.condensed
+                        font.pixelSize: vpx(12)
+                        elide: Text.ElideLeft
+                        Layout.fillWidth: true
+                    }
+
+                    Text {
+                        text: {
+                            switch(terminalKernel.bootState) {
+                                case terminalKernel.states.BOOTING: return "BOOTING";
+                                case terminalKernel.states.USER_CREATION: return "SETUP";
+                                case terminalKernel.states.USER_CREATION_PASSWORD: return "SETUP";
+                                case terminalKernel.states.USER_CREATION_CONFIRM: return "SETUP";
+                                case terminalKernel.states.LOGIN_USERNAME: return "LOGIN";
+                                case terminalKernel.states.LOGIN_PASSWORD: return "LOGIN";
+                                case terminalKernel.states.SHELL: return "SHELL";
+                                case terminalKernel.states.LOCKED: return "LOCKED";
+                                case terminalKernel.states.GAME_RUNNING: return "GAME";
+                                default: return "UNKNOWN";
+                            }
+                        }
+                        color: root.currentColorScheme.statusStateColor
+                        font.family: global.fonts.condensed
+                        font.pixelSize: vpx(12)
+                    }
                 }
             }
         }
+    }
 
-        Rectangle {
-            id: statusBar
-            anchors.bottom: parent.bottom
-            anchors.left: parent.left
-            anchors.right: parent.right
-            height: vpx(20)
-            color: root.currentColorScheme.statusBarBackground
+    Scanlines {
+        id: scanlines
+        anchors.fill: parent
+        z: 1000
 
-            RowLayout {
-                anchors.fill: parent
-                anchors.margins: vpx(2)
-                anchors.leftMargin: vpx(10)
-                anchors.rightMargin: vpx(10)
+        source: ShaderEffectSource {
+            sourceItem: mainInterface
+            live: true
+            hideSource: scanlines.enabled
+        }
 
+        fadeColor: root.currentColorScheme.backgroundColor
 
-                spacing: vpx(10)
+        Component.onCompleted: {
+            root.scanlines = scanlines;
+        }
+    }
 
-                Text {
-                    text: terminalKernel.currentUser || "guest"
-                    color: root.currentColorScheme.statusUserColor
-                    font.family: global.fonts.condensed
-                    font.pixelSize: vpx(12)
-                }
-
-                Text {
-                    text: {
-                        var path = terminalKernel.cwd;
-                        if (terminalKernel.getUserPath) {
-                            path = terminalKernel.getUserPath(terminalKernel.cwd);
-                        }
-                        return path;
-                    }
-                    color: root.currentColorScheme.statusPathColor
-                    font.family: global.fonts.condensed
-                    font.pixelSize: vpx(12)
-                    elide: Text.ElideLeft
-                    Layout.fillWidth: true
-                }
-
-                Text {
-                    text: {
-                        switch(terminalKernel.bootState) {
-                            case terminalKernel.states.BOOTING: return "BOOTING";
-                            case terminalKernel.states.USER_CREATION: return "SETUP";
-                            case terminalKernel.states.USER_CREATION_PASSWORD: return "SETUP";
-                            case terminalKernel.states.USER_CREATION_CONFIRM: return "SETUP";
-                            case terminalKernel.states.LOGIN_USERNAME: return "LOGIN";
-                            case terminalKernel.states.LOGIN_PASSWORD: return "LOGIN";
-                            case terminalKernel.states.SHELL: return "SHELL";
-                            case terminalKernel.states.LOCKED: return "LOCKED";
-                            case terminalKernel.states.GAME_RUNNING: return "GAME";
-                            default: return "UNKNOWN";
-                        }
-                    }
-                    color: root.currentColorScheme.statusStateColor
-                    font.family: global.fonts.condensed
-                    font.pixelSize: vpx(12)
-                }
+    Connections {
+        target: root
+        function onCurrentColorSchemeChanged() {
+            if (scanlines) {
+                scanlines.fadeColor = root.currentColorScheme.backgroundColor;
             }
         }
     }
