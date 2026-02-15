@@ -4,7 +4,10 @@
 
 ![Version](https://img.shields.io/badge/version-1.0-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Pegasus_Frontend-orange.svg)
-![License](https://i.creativecommons.org/l/by-nc-sa/4.0/88x31.png)
+![License](https://img.shields.io/badge/license-MIT-green.svg)
+![License](https://img.shields.io/badge/license-by-nc-sa/4.0.png)
+
+
 
 **A terminal-based interface for Pegasus Frontend that emulates a Linux command-line environment**
 
