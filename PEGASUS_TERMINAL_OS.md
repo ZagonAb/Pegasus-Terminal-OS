@@ -10,7 +10,7 @@
 
 **A terminal-based interface for Pegasus Frontend that emulates a Linux command-line environment**
 
-[Quick Start](#quick-start) • [Commands](#commands) • [Tips & Tricks](#tips-and-tricks)
+[Quick Start](#-quick-start) • [Commands](#-commands) • [Tips & Tricks](#-tips-and-tricks)
 
 </div>
 
