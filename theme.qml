@@ -275,6 +275,17 @@ FocusScope {
             initializeKernel();
         }
 
+        function findGameByExactTitle(title) {
+            var lowerTitle = title.trim().toLowerCase();
+            for (var i = 0; i < api.allGames.count; i++) {
+                var game = api.allGames.get(i);
+                if (game.title.trim().toLowerCase() === lowerTitle) {
+                    return game;
+                }
+            }
+            return null;
+        }
+
         function getCommandCompletions(partial) {
             if (!partial || partial.trim() === "") return [];
 
@@ -1177,91 +1188,120 @@ FocusScope {
             var currentToken = "";
             var inQuotes = false;
             var quoteChar = '';
+            var inFlagValue = false;
 
-    for (var i = 0; i < input.length; i++) {
-        var c = input.charAt(i);
+            for (var i = 0; i < input.length; i++) {
+                var c = input.charAt(i);
 
-        if (inQuotes) {
-            if (c === quoteChar) {
-                inQuotes = false;
-                if (currentToken !== "") {
+                if (!inQuotes && !inFlagValue && c === '=' && currentToken.startsWith('--')) {
                     tokens.push(currentToken);
                     currentToken = "";
+                    inFlagValue = true;
+                    continue;
                 }
-            } else {
-                currentToken += c;
-            }
-        } else {
-            if (c === '"' || c === "'") {
-                inQuotes = true;
-                quoteChar = c;
-                if (currentToken !== "") {
-                    tokens.push(currentToken);
-                    currentToken = "";
+
+                if (inQuotes) {
+                    if (c === quoteChar) {
+                        inQuotes = false;
+                        if (currentToken !== "") {
+                            tokens.push(currentToken);
+                            currentToken = "";
+                        }
+                        if (inFlagValue && (i+1 >= input.length || input.charAt(i+1) === ' ' || input.charAt(i+1) === '\t')) {
+                            inFlagValue = false;
+                        }
+                    } else {
+                        currentToken += c;
+                    }
+                } else if (inFlagValue) {
+                    if (c === '"' || c === "'") {
+                        inQuotes = true;
+                        quoteChar = c;
+                    } else if (c === ' ' || c === '\t') {
+                        if (currentToken !== "") {
+                            tokens.push(currentToken);
+                            currentToken = "";
+                        }
+                        inFlagValue = false;
+                    } else {
+                        currentToken += c;
+                    }
+                } else {
+                    if (c === '"' || c === "'") {
+                        inQuotes = true;
+                        quoteChar = c;
+                        if (currentToken !== "") {
+                            tokens.push(currentToken);
+                            currentToken = "";
+                        }
+                    } else if (c === ' ' || c === '\t') {
+                        if (currentToken !== "") {
+                            tokens.push(currentToken);
+                            currentToken = "";
+                        }
+                    } else if (c === '|' || c === '>' || c === '<') {
+                        if (currentToken !== "") {
+                            tokens.push(currentToken);
+                        }
+                        tokens.push(c);
+                        currentToken = "";
+                    } else {
+                        currentToken += c;
+                    }
                 }
-            } else if (c === ' ' || c === '\t') {
-                if (currentToken !== "") {
-                    tokens.push(currentToken);
-                    currentToken = "";
+            }
+
+            if (currentToken !== "") {
+                tokens.push(currentToken);
+            }
+
+            if (inQuotes) {
+                return { error: "Unclosed quotes" };
+            }
+
+            if (tokens.length === 0) {
+                return { error: "Empty command" };
+            }
+
+            var command = tokens[0];
+            var args = [];
+            var flags = {};
+
+            for (var j = 1; j < tokens.length; j++) {
+                var token = tokens[j];
+
+                if (token.indexOf("--") === 0) {
+                    var flagPart = token.substring(2);
+                    var equalsIndex = flagPart.indexOf("=");
+
+                    if (equalsIndex !== -1) {
+                        var flagName = flagPart.substring(0, equalsIndex);
+                        var flagValue = flagPart.substring(equalsIndex + 1);
+                        flags[flagName] = flagValue;
+                    } else {
+                        if (j + 1 < tokens.length && !tokens[j+1].startsWith("-")) {
+                            flags[flagPart] = tokens[j+1];
+                            j++;
+                        } else {
+                            flags[flagPart] = true;
+                        }
+                    }
+                } else if (token.indexOf("-") === 0 && token.length > 1) {
+                    var shortFlags = token.substring(1);
+                    for (var k = 0; k < shortFlags.length; k++) {
+                        flags[shortFlags.charAt(k)] = true;
+                    }
+                } else {
+                    args.push(token);
                 }
-            } else if (c === '|' || c === '>' || c === '<') {
-                if (currentToken !== "") {
-                    tokens.push(currentToken);
-                }
-                tokens.push(c);
-                currentToken = "";
-            } else {
-                currentToken += c;
             }
-        }
-    }
 
-    if (currentToken !== "") {
-        tokens.push(currentToken);
-    }
-
-    if (inQuotes) {
-        return { error: "Unclosed quotes" };
-    }
-
-    if (tokens.length === 0) {
-        return { error: "Empty command" };
-    }
-
-    var command = tokens[0];
-    var args = [];
-    var flags = {};
-
-    for (var j = 1; j < tokens.length; j++) {
-        var token = tokens[j];
-
-        if (token.indexOf("--") === 0) {
-            var flagPart = token.substring(2);
-            var equalsIndex = flagPart.indexOf("=");
-
-            if (equalsIndex !== -1) {
-                var flagName = flagPart.substring(0, equalsIndex);
-                var flagValue = flagPart.substring(equalsIndex + 1);
-                flags[flagName] = flagValue;
-            } else {
-                flags[flagPart] = true;
-            }
-        } else if (token.indexOf("-") === 0) {
-            var shortFlags = token.substring(1);
-            for (var k = 0; k < shortFlags.length; k++) {
-                flags[shortFlags.charAt(k)] = true;
-            }
-        } else {
-            args.push(token);
-        }
-    }
-
-    return {
-        command: command,
-        args: args,
-        flags: flags,
-        raw: input
-    };
+            return {
+                command: command,
+                args: args,
+                flags: flags,
+                raw: input
+            };
         }
 
         function getHistoryPrevious() {

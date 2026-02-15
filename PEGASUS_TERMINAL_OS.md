@@ -727,8 +727,99 @@ scanline --glow=1.5 --glowspread=0.3 --vhs=0.2
 - Custom adjustments override preset values and mark preset as "custom"
 
 ---
+### 12 `journal` - Game Notes System
 
-### 12. Utility Commands
+**Description:**  
+Create, view, edit, and delete personal notes for your games. They can be accessed by collection index or game title.
+
+---
+
+#### **Usage**
+
+```bash
+journal <@collection:identifier> [options]
+journal list
+journal show <id>
+journal show "game title"
+journal edit <id> [--title="new title"] [--comment="new comment"]
+journal rm <id>
+journal clear [--force]
+```
+
+---
+
+#### **Subcommands**
+
+| Subcommand | Description |
+|------------|-------------|
+| `list` | List all saved notes with ID, game title, collection, title, date, and a preview of the comment. |
+| `show <id>` | Display full details of a specific note by its numeric ID. |
+| `show "game title"` | Show all notes for a game matching the given title (case‑insensitive, partial matches allowed). |
+| `edit <id> [options]` | Modify the title and/or comment of an existing note. |
+| `rm <id>` | Permanently delete a single note. |
+| `clear` | Delete **all** notes (requires `--force` or `--yes` to proceed). |
+
+---
+
+#### **Options for Creating/Editing Notes**
+
+| Option | Description |
+|--------|-------------|
+| `--title="My Title"` | Custom title for the note. If omitted when creating, defaults to `"Note about <game>"`. |
+| `--comment="My comment"` | The actual note text. |
+
+---
+
+#### **Identifier Format** (`@collection:identifier`)
+
+- **`collection`** – Can be a real Pegasus collection short name (e.g., `snes`, `genesis`) or a virtual collection:  
+  `all`, `all-games`, `allgames`, `favorites`, `fav`, `mostplayed`, `most`, `lastplayed`, `last`, `recent`.  
+- **`identifier`** – Either a numeric index **or** the exact game title enclosed in double quotes.  
+
+**Examples:**  
+- `@snes:12` – game at index 12 in the SNES collection.  
+- `@snes:"Super Mario World"` – game with that exact title in the SNES collection.  
+- `@fav:0` – first game in the Favorites virtual collection.  
+- `@last:"Hades"` – game titled "Hades" in the Last Played virtual collection.
+
+---
+
+#### **Examples**
+
+```bash
+# Create a new note for a game by index
+journal @snes:12 --title="Zelda: A Link to the Past" --comment="Found the Master Sword in the Eastern Palace."
+
+# Create a note using the exact game title
+journal @nes:"Super Mario Bros 3" --comment="World 8 is really tough."
+
+# List all notes
+journal list
+
+# Show a specific note by its ID
+journal show 3
+
+# Show notes for a game by title (partial match)
+journal show "Zelda"
+
+# Edit a note (change title and comment)
+journal edit 3 --title="Progress update" --comment="Finally beat the water temple."
+
+# Delete a note
+journal rm 3
+
+# Delete ALL notes (with confirmation flag)
+journal clear --force
+```
+
+---
+
+#### **Aliases**
+
+`notes`, `note`
+---
+
+### 13. Utility Commands
 
 #### `help` - Command Help
 **Description:** Display help information for commands.

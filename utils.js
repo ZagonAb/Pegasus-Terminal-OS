@@ -20,6 +20,51 @@ function repeatString(str, count) {
     return result;
 }
 
+function wrapText(text, width) {
+    if (!text) return [""];
+    if (text.length <= width) return [text];
+
+    var words = text.split(' ');
+    var lines = [];
+    var currentLine = '';
+
+    for (var i = 0; i < words.length; i++) {
+        var word = words[i];
+
+        if (word.length > width) {
+            if (currentLine !== '') {
+                lines.push(currentLine);
+                currentLine = '';
+            }
+
+            for (var j = 0; j < word.length; j += width) {
+                var chunk = word.substr(j, width);
+                lines.push(chunk);
+            }
+        }
+        else if ((currentLine + ' ' + word).length > width) {
+            if (currentLine !== '') {
+                lines.push(currentLine);
+                currentLine = word;
+            } else {
+                lines.push(word);
+            }
+        }
+        else if (currentLine === '') {
+            currentLine = word;
+        }
+        else {
+            currentLine += ' ' + word;
+        }
+    }
+
+    if (currentLine !== '') {
+        lines.push(currentLine);
+    }
+
+    return lines;
+}
+
 var CommandRegistry = {
     commands: {},
 
@@ -2407,7 +2452,6 @@ function registerTerminalCommands(kernel) {
         }
     }
 
-
     CommandRegistry.register(kernel, "launch", {
         help: "Launch a game by title, number, or from collection",
         usage: "launch <game_title|index|@collection:index> [--collection=<name>] [--index=<n>]",
@@ -4265,6 +4309,506 @@ function registerTerminalCommands(kernel) {
                 sideEffects: {}
             };
         }
+    });
+
+    CommandRegistry.register(kernel, "journal", {
+        help: "Manage personal notes (journal) for your games.",
+                             usage: `journal <@collection:identifier> [options]
+                             Identifier can be an index (e.g., @snes:12) or the game title in quotes (e.g., @snes:"Super Mario Bros 3").
+                             journal list                                 - List all saved notes.
+                             journal show <id>                            - Show a note by its numeric ID.
+                             journal show "game title"                     - Show a note by game title.
+                             journal edit <id> [--title="new title"] [--comment="new comment"] - Edit a note.
+                             journal rm <id>                               - Delete a specific note.
+                             journal clear                                 - Delete ALL notes (with confirmation).`,
+                             minArgs: 0,
+                             maxArgs: 4,
+                             aliases: ["notes", "note"],
+                             requiredState: kernel.states.SHELL,
+                             requiredAuth: true,
+                             execute: function (args, flags) {
+                                 var stdout = [];
+                                 var stderr = [];
+
+                                 var allNotes = api.memory.get("terminal_journal_notes") || {};
+
+                                 function saveNotes() {
+                                     api.memory.set("terminal_journal_notes", allNotes);
+                                 }
+
+                                 function getNextId() {
+                                     var maxId = 0;
+                                     for (var key in allNotes) {
+                                         if (allNotes.hasOwnProperty(key)) {
+                                             var noteId = parseInt(allNotes[key].id);
+                                             if (noteId > maxId) maxId = noteId;
+                                         }
+                                     }
+                                     return maxId + 1;
+                                 }
+
+                                 function findGameFromIdentifier(identifier) {
+                                     if (!identifier || identifier.indexOf("@") !== 0) {
+                                         return { error: "Invalid format. Must start with @ (e.g., @snes:12)" };
+                                     }
+
+                                     var colonIndex = identifier.indexOf(":");
+                                     if (colonIndex === -1) {
+                                         return { error: "Invalid format. Must be @collection:identifier" };
+                                     }
+
+                                     var collectionPart = identifier.substring(1, colonIndex).toLowerCase();
+                                     var gamePart = identifier.substring(colonIndex + 1).trim();
+
+                                     var isTitle = false;
+                                     if (gamePart.startsWith('"') && gamePart.endsWith('"')) {
+                                         isTitle = true;
+                                         gamePart = gamePart.substring(1, gamePart.length - 1);
+                                     }
+
+                                     var game = null;
+                                     var gameIndex = -1;
+                                     var indexInCollection = -1;
+                                     var globalIndex = -1;
+
+                                     if (!isTitle) {
+                                         gameIndex = parseInt(gamePart);
+                                         if (isNaN(gameIndex) || gameIndex < 0) {
+                                             return { error: "Game index must be a valid number: " + gamePart };
+                                         }
+                                     }
+
+                                     var virtualCollections = {
+                                         "all": "All-Games",
+                                         "all-games": "All-Games",
+                                         "allgames": "All-Games",
+                                         "favorites": "Favorites",
+                                         "fav": "Favorites",
+                                         "mostplayed": "MostPlayed",
+                                         "most": "MostPlayed",
+                                         "lastplayed": "LastPlayed",
+                                         "last": "LastPlayed",
+                                         "recent": "LastPlayed"
+                                     };
+
+                                     var targetCollection = null;
+
+                                     if (virtualCollections[collectionPart]) {
+                                         var gamesArray = [];
+                                         if (collectionPart === "all" || collectionPart === "all-games" || collectionPart === "allgames") {
+                                             for (var i = 0; i < api.allGames.count; i++) gamesArray.push(api.allGames.get(i));
+                                         } else if (collectionPart === "favorites" || collectionPart === "fav") {
+                                             for (var i = 0; i < api.allGames.count; i++) {
+                                                 var g = api.allGames.get(i);
+                                                 if (g.favorite) gamesArray.push(g);
+                                             }
+                                         } else if (collectionPart === "mostplayed" || collectionPart === "most") {
+                                             for (var i = 0; i < api.allGames.count; i++) {
+                                                 var g = api.allGames.get(i);
+                                                 if (g.playTime && g.playTime > 0) gamesArray.push(g);
+                                             }
+                                             gamesArray.sort(function(a, b) { return (b.playTime || 0) - (a.playTime || 0); });
+                                         } else if (collectionPart === "lastplayed" || collectionPart === "last" || collectionPart === "recent") {
+                                             for (var i = 0; i < api.allGames.count; i++) {
+                                                 var g = api.allGames.get(i);
+                                                 if (g.lastPlayed && g.lastPlayed > 0) gamesArray.push(g);
+                                             }
+                                             gamesArray.sort(function(a, b) { return (b.lastPlayed || 0) - (a.lastPlayed || 0); });
+                                         }
+
+                                         if (!isTitle && gameIndex >= 0 && gameIndex < gamesArray.length) {
+                                             game = gamesArray[gameIndex];
+                                             indexInCollection = gameIndex;
+                                         } else if (isTitle) {
+                                             for (var i = 0; i < gamesArray.length; i++) {
+                                                 if (gamesArray[i].title.toLowerCase() === gamePart.toLowerCase()) {
+                                                     game = gamesArray[i];
+                                                     indexInCollection = i;
+                                                     break;
+                                                 }
+                                             }
+                                         }
+                                     } else {
+                                         for (var i = 0; i < api.collections.count; i++) {
+                                             var coll = api.collections.get(i);
+                                             if (coll.shortName.toLowerCase() === collectionPart || coll.name.toLowerCase() === collectionPart) {
+                                                 targetCollection = coll;
+                                                 break;
+                                             }
+                                         }
+
+                                         if (targetCollection && targetCollection.games) {
+                                             if (!isTitle && gameIndex >= 0 && gameIndex < targetCollection.games.count) {
+                                                 game = targetCollection.games.get(gameIndex);
+                                                 indexInCollection = gameIndex;
+                                             } else if (isTitle) {
+                                                 for (var i = 0; i < targetCollection.games.count; i++) {
+                                                     var g = targetCollection.games.get(i);
+                                                     if (g.title.toLowerCase() === gamePart.toLowerCase()) {
+                                                         game = g;
+                                                         indexInCollection = i;
+                                                         break;
+                                                     }
+                                                 }
+                                             }
+                                         }
+                                     }
+
+                                     if (!game) {
+                                         if (isTitle) {
+                                             return { error: "Game not found in collection '" + collectionPart + "' with title: " + gamePart };
+                                         } else {
+                                             return { error: "Game not found in collection '" + collectionPart + "' with index: " + gameIndex };
+                                         }
+                                     }
+
+                                     for (var idx = 0; idx < api.allGames.count; idx++) {
+                                         if (api.allGames.get(idx).title === game.title) {
+                                             globalIndex = idx;
+                                             break;
+                                         }
+                                     }
+
+                                     return {
+                                         game: game,
+                                         collectionShortName: collectionPart,
+                                         indexInCollection: indexInCollection,
+                                         globalIndex: globalIndex
+                                     };
+                                 }
+
+                                 if (args.length === 0) {
+                                     stdout.push("JOURNAL - Game Notes System");
+                                     stdout.push(repeatString("=", 60));
+                                     stdout.push("Usage: journal <@collection:identifier> [options]");
+                                     stdout.push("  Options:");
+                                     stdout.push("    --title=\"My Title\"      Title of the note (default: 'Note about [Game]')");
+                                     stdout.push("    --comment=\"My comment\"  The note text.");
+                                     stdout.push("");
+                                     stdout.push("  Examples:");
+                                     stdout.push("    journal @snes:12 --title=\"Zelda\" --comment=\"I found the Master Sword.\"");
+                                     stdout.push("    journal @snes:\"Super Mario Bros 3\" --comment=\"World 8 is tricky.\"");
+                                     stdout.push("");
+                                     stdout.push("  Other commands:");
+                                     stdout.push("    journal list                    - List all notes");
+                                     stdout.push("    journal show <id>               - Show a note by ID");
+                                     stdout.push("    journal show \"game title\"      - Show a note by game title");
+                                     stdout.push("    journal edit <id> [options]     - Edit a note");
+                                     stdout.push("    journal rm <id>                 - Delete a note");
+                                     stdout.push("    journal clear                   - Delete ALL notes");
+                                     return { stdout: stdout, stderr: [], exitCode: 0, sideEffects: {} };
+                                 }
+
+                                 var subcommand = args[0].toLowerCase();
+
+                                 if (subcommand === "list") {
+                                     var notesList = [];
+                                     for (var key in allNotes) {
+                                         if (allNotes.hasOwnProperty(key)) {
+                                             notesList.push(allNotes[key]);
+                                         }
+                                     }
+
+                                     notesList.sort(function(a, b) { return b.id - a.id; });
+
+                                     if (notesList.length === 0) {
+                                         stdout.push("No notes saved.");
+                                     } else {
+                                         stdout.push("YOUR NOTES (" + notesList.length + ")");
+                                         stdout.push(repeatString("=", 70));
+                                         for (var i = 0; i < notesList.length; i++) {
+                                             var note = notesList[i];
+                                             var date = new Date(note.timestamp);
+                                             stdout.push("[" + note.id + "] " + note.gameTitle + " (" + note.collection + ")");
+                                             stdout.push("    Title: " + (note.noteTitle || "Untitled"));
+                                             stdout.push("    Date:  " + date.toLocaleDateString() + " " + date.toLocaleTimeString());
+                                             if (note.comment) {
+                                                 var shortComment = note.comment;
+                                                 if (note.comment.length > 50) {
+                                                     var wrappedPreview = wrapText(note.comment, 50);
+                                                     shortComment = wrappedPreview[0] + (wrappedPreview.length > 1 ? "..." : "");
+                                                 }
+                                                 stdout.push("    Note:  " + shortComment);
+                                             }
+                                             stdout.push(repeatString("-", 70));
+                                         }
+                                     }
+                                     return { stdout: stdout, stderr: [], exitCode: 0, sideEffects: {} };
+                                 }
+
+                                 if (subcommand === "show") {
+                                     if (args.length < 2) {
+                                         stderr.push("Usage: journal show <id> or journal show \"game title\"");
+                                         return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                                     }
+
+                                     var searchTerm = args[1];
+                                     var foundNotes = [];
+
+                                     var searchId = parseInt(searchTerm);
+                                     if (!isNaN(searchId)) {
+                                         for (var key in allNotes) {
+                                             if (allNotes[key].id === searchId) {
+                                                 foundNotes.push(allNotes[key]);
+                                                 break;
+                                             }
+                                         }
+                                     } else {
+                                         var searchTitle = searchTerm.toLowerCase();
+                                         if (searchTitle.startsWith('"') && searchTitle.endsWith('"')) {
+                                             searchTitle = searchTitle.substring(1, searchTitle.length - 1);
+                                         }
+                                         for (var key in allNotes) {
+                                             if (allNotes[key].gameTitle.toLowerCase().indexOf(searchTitle) !== -1) {
+                                                 foundNotes.push(allNotes[key]);
+                                             }
+                                         }
+                                     }
+
+                                     if (foundNotes.length === 0) {
+                                         stderr.push("No notes found for: " + searchTerm);
+                                         return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                                     }
+
+                                     for (var n = 0; n < foundNotes.length; n++) {
+                                         var note = foundNotes[n];
+                                         var date = new Date(note.timestamp);
+                                         stdout.push("NOTE [" + note.id + "]");
+                                         stdout.push(repeatString("=", 60));
+                                         stdout.push("Game:     " + note.gameTitle);
+                                         stdout.push("Collection: " + note.collection);
+                                         stdout.push("Title:    " + (note.noteTitle || "Untitled"));
+                                         stdout.push("Date:     " + date.toLocaleDateString() + " " + date.toLocaleTimeString());
+                                         stdout.push("Comment:");
+
+                                         var wrappedLines = wrapText(note.comment || "(empty)", 70);
+                                         for (var w = 0; w < wrappedLines.length; w++) {
+                                             stdout.push("  " + wrappedLines[w]);
+                                         }
+
+                                         var globalIndex = -1;
+                                         for (var i = 0; i < api.allGames.count; i++) {
+                                             if (api.allGames.get(i).title === note.gameTitle) {
+                                                 globalIndex = i;
+                                                 break;
+                                             }
+                                         }
+
+                                         var collectionIndex = -1;
+                                         var collectionPart = note.collection.toLowerCase();
+                                         var virtualCollections = {
+                                             "all": "All-Games",
+                                             "all-games": "All-Games",
+                                             "allgames": "All-Games",
+                                             "favorites": "Favorites",
+                                             "fav": "Favorites",
+                                             "mostplayed": "MostPlayed",
+                                             "most": "MostPlayed",
+                                             "lastplayed": "LastPlayed",
+                                             "last": "LastPlayed",
+                                             "recent": "LastPlayed"
+                                         };
+
+                                         if (virtualCollections[collectionPart]) {
+                                             var gamesArray = [];
+                                             if (collectionPart === "all" || collectionPart === "all-games" || collectionPart === "allgames") {
+                                                 for (var i = 0; i < api.allGames.count; i++) gamesArray.push(api.allGames.get(i));
+                                             } else if (collectionPart === "favorites" || collectionPart === "fav") {
+                                                 for (var i = 0; i < api.allGames.count; i++) {
+                                                     var g = api.allGames.get(i);
+                                                     if (g.favorite) gamesArray.push(g);
+                                                 }
+                                             } else if (collectionPart === "mostplayed" || collectionPart === "most") {
+                                                 for (var i = 0; i < api.allGames.count; i++) {
+                                                     var g = api.allGames.get(i);
+                                                     if (g.playTime && g.playTime > 0) gamesArray.push(g);
+                                                 }
+                                                 gamesArray.sort(function(a, b) { return (b.playTime || 0) - (a.playTime || 0); });
+                                             } else if (collectionPart === "lastplayed" || collectionPart === "last" || collectionPart === "recent") {
+                                                 for (var i = 0; i < api.allGames.count; i++) {
+                                                     var g = api.allGames.get(i);
+                                                     if (g.lastPlayed && g.lastPlayed > 0) gamesArray.push(g);
+                                                 }
+                                                 gamesArray.sort(function(a, b) { return (b.lastPlayed || 0) - (a.lastPlayed || 0); });
+                                             }
+                                             for (var i = 0; i < gamesArray.length; i++) {
+                                                 if (gamesArray[i].title === note.gameTitle) {
+                                                     collectionIndex = i;
+                                                     break;
+                                                 }
+                                             }
+                                         } else {
+                                             var targetCollection = null;
+                                             for (var i = 0; i < api.collections.count; i++) {
+                                                 var coll = api.collections.get(i);
+                                                 if (coll.shortName.toLowerCase() === collectionPart || coll.name.toLowerCase() === collectionPart) {
+                                                     targetCollection = coll;
+                                                     break;
+                                                 }
+                                             }
+                                             if (targetCollection && targetCollection.games) {
+                                                 for (var i = 0; i < targetCollection.games.count; i++) {
+                                                     if (targetCollection.games.get(i).title === note.gameTitle) {
+                                                         collectionIndex = i;
+                                                         break;
+                                                     }
+                                                 }
+                                             }
+                                         }
+
+                                         stdout.push("");
+                                         stdout.push("Launch:");
+                                         if (collectionIndex !== -1) {
+                                             stdout.push("  launch @" + note.collection + ":" + collectionIndex);
+                                         } else {
+                                             stdout.push("  (could not determine index in collection)");
+                                         }
+                                         if (globalIndex !== -1) {
+                                             stdout.push("  launch " + globalIndex + "   (global index)");
+                                         } else {
+                                             stdout.push("  (could not determine global index)");
+                                         }
+
+                                         if (n < foundNotes.length - 1) stdout.push(repeatString("-", 60));
+                                     }
+                                     return { stdout: stdout, stderr: [], exitCode: 0, sideEffects: {} };
+                                 }
+
+                                 if (subcommand === "edit") {
+                                     if (args.length < 2) {
+                                         stderr.push("Usage: journal edit <id> [--title=\"new title\"] [--comment=\"new comment\"]");
+                                         return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                                     }
+
+                                     var noteId = parseInt(args[1]);
+                                     if (isNaN(noteId)) {
+                                         stderr.push("Invalid ID. Must be a number.");
+                                         return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                                     }
+
+                                     var noteToEdit = null;
+                                     for (var key in allNotes) {
+                                         if (allNotes[key].id === noteId) {
+                                             noteToEdit = allNotes[key];
+                                             break;
+                                         }
+                                     }
+
+                                     if (!noteToEdit) {
+                                         stderr.push("No note found with ID: " + noteId);
+                                         return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                                     }
+
+                                     var changed = false;
+                                     if (flags.title !== undefined) {
+                                         noteToEdit.noteTitle = flags.title;
+                                         changed = true;
+                                     }
+                                     if (flags.comment !== undefined) {
+                                         noteToEdit.comment = flags.comment;
+                                         changed = true;
+                                     }
+                                     if (flags.timestamp !== undefined) {
+                                         noteToEdit.timestamp = Date.now();
+                                         changed = true;
+                                     }
+
+                                     if (!changed) {
+                                         stderr.push("Nothing specified to edit. Use --title or --comment.");
+                                         return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                                     }
+
+                                     saveNotes();
+                                     stdout.push("Note ID " + noteId + " updated successfully.");
+                                     return { stdout: stdout, stderr: [], exitCode: 0, sideEffects: {} };
+                                 }
+
+                                 if (subcommand === "rm" || subcommand === "remove") {
+                                     if (args.length < 2) {
+                                         stderr.push("Usage: journal rm <id>");
+                                         return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                                     }
+
+                                     var noteId = parseInt(args[1]);
+                                     if (isNaN(noteId)) {
+                                         stderr.push("Invalid ID. Must be a number.");
+                                         return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                                     }
+
+                                     var newNotes = {};
+                                     var deleted = false;
+                                     for (var key in allNotes) {
+                                         if (allNotes[key].id !== noteId) {
+                                             newNotes[key] = allNotes[key];
+                                         } else {
+                                             deleted = true;
+                                         }
+                                     }
+
+                                     if (!deleted) {
+                                         stderr.push("No note found with ID: " + noteId);
+                                         return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                                     }
+
+                                     allNotes = newNotes;
+                                     saveNotes();
+                                     stdout.push("Note ID " + noteId + " deleted.");
+                                     return { stdout: stdout, stderr: [], exitCode: 0, sideEffects: {} };
+                                 }
+
+                                 if (subcommand === "clear") {
+                                     if (flags.force || flags.yes || flags.f) {
+                                         allNotes = {};
+                                         saveNotes();
+                                         stdout.push("All notes have been deleted.");
+                                         return { stdout: stdout, stderr: [], exitCode: 0, sideEffects: {} };
+                                     } else {
+                                         stdout.push("⚠️  To delete ALL notes, use 'journal clear --force' or 'journal clear --yes'");
+                                         stdout.push("    This will permanently delete all your notes.");
+                                         return { stdout: stdout, stderr: [], exitCode: 0, sideEffects: {} };
+                                     }
+                                 }
+
+                                 if (!args[0].startsWith("@")) {
+                                     stderr.push("Unrecognized command. The first argument must be a game identifier (@...) or a subcommand (list, show, etc.).");
+                                     return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                                 }
+
+                                 var identifier = args[0];
+                                 var gameInfo = findGameFromIdentifier(identifier);
+
+                                 if (gameInfo.error) {
+                                     stderr.push(gameInfo.error);
+                                     return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                                 }
+
+                                 var game = gameInfo.game;
+                                 var collectionName = gameInfo.collectionShortName;
+                                 var indexInCollection = gameInfo.indexInCollection;
+                                 var globalIndex = gameInfo.globalIndex;
+
+                                 if (!flags.title && !flags.comment) {
+                                     stderr.push("You must provide at least one --title or --comment to save the note.");
+                                     return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                                 }
+
+                                 var newNote = {
+                                     id: getNextId(),
+                             gameTitle: game.title,
+                             collection: collectionName,
+                             gameIndexInCollection: indexInCollection,
+                             gameGlobalIndex: globalIndex,
+                             noteTitle: flags.title || "Note about " + game.title,
+                             comment: flags.comment || "",
+                             timestamp: Date.now()
+                                 };
+
+                                 allNotes[newNote.id] = newNote;
+                                 saveNotes();
+
+                                 stdout.push("Note saved successfully (ID: " + newNote.id + ")");
+                                 return { stdout: stdout, stderr: [], exitCode: 0, sideEffects: {} };
+                             }
     });
 }
 
