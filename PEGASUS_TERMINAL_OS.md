@@ -53,9 +53,6 @@ collections
 # Navigate to a collection
 use snes
 
-# List games with numbers
-ll
-
 # Get game info
 info @snes:5
 
