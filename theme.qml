@@ -1118,6 +1118,21 @@ FocusScope {
                 stats.push("Login successful. Welcome, " + currentUser + "!");
                 stats.push("");
 
+                var firstRunKey = "terminal_first_run";
+                var firstRun = api.memory.get(firstRunKey);
+                var now = Date.now();
+                var oneDay = 24 * 60 * 60 * 1000;
+
+                if (!firstRun) {
+                    api.memory.set(firstRunKey, now);
+                    firstRun = now;
+                }
+
+                if (now - parseInt(firstRun) < oneDay) {
+                    stats.push("✨ New command added: 'journal' - try it out! (update 15-2-26)");
+                    stats.push("");
+                }
+
                 var lastPlayedGame = null;
                 var lastPlayedTime = 0;
                 var lastPlayedIndex = -1;
