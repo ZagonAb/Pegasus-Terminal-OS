@@ -1682,7 +1682,7 @@ function registerTerminalCommands(kernel) {
 
     CommandRegistry.register(kernel, "info", {
         help: "Show game information",
-        usage: "info <game_title|index|@collection:index> [--collection=<n>] [--index=<n>] [-d|--description]",
+        usage: "info <game_title|index|@collection:index> [--collection=<n>] [--index=<n>] [-d|--description] [-a|--ascii]",
         minArgs: 0,
         maxArgs: 1,
         aliases: ["show", "detail"],
@@ -1724,10 +1724,141 @@ function registerTerminalCommands(kernel) {
                 return lines;
             }
 
+            function asciiProgressBar(value, max, width, filledChar, emptyChar) {
+                if (value === undefined || value === null) return "N/A";
+                if (max === undefined) max = 1;
+                if (width === undefined) width = 20;
+                if (filledChar === undefined) filledChar = "█";
+                if (emptyChar === undefined) emptyChar = "░";
+
+                var percent = value / max;
+                var filledCount = Math.round(percent * width);
+                filledCount = Math.min(filledCount, width);
+
+                var bar = filledChar.repeat(filledCount) + emptyChar.repeat(width - filledCount);
+                var percentDisplay = Math.round(percent * 100) + "%";
+
+                return bar + " " + percentDisplay;
+            }
+
+            function asciiStars(value, maxStars) {
+                if (value === undefined || value === null) return "N/A";
+                if (maxStars === undefined) maxStars = 5;
+
+                var filledStars = Math.round(value * maxStars);
+                filledStars = Math.min(filledStars, maxStars);
+
+                return "★".repeat(filledStars) + "☆".repeat(maxStars - filledStars) + " " + (value * 100).toFixed(0) + "%";
+            }
+
+            function asciiHeatmap(value, min, max) {
+                if (value === undefined || value === null) return "N/A";
+
+                var colors = ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"];
+                var percent = (value - min) / (max - min);
+                var index = Math.min(Math.floor(percent * colors.length), colors.length - 1);
+                index = Math.max(0, index);
+
+                return colors[index] + " " + value;
+            }
+
+            function formatPlayTime(seconds) {
+                if (!seconds || seconds === 0) return "0h 0m";
+
+                var hours = Math.floor(seconds / 3600);
+                var minutes = Math.floor((seconds % 3600) / 60);
+
+                var symbol = "⏱️";
+                if (hours > 100) symbol = "🔥";
+                else if (hours > 50) symbol = "⚡";
+                else if (hours > 10) symbol = "📊";
+
+                return symbol + " " + hours + "h " + minutes + "m";
+            }
+
+            function asciiCheckbox(value) {
+                return value ? "[✓]" : "[ ]";
+            }
+
+            function asciiBox(text, width, style) {
+                if (style === undefined) style = "single";
+
+                var top, middle, bottom, left, right;
+
+                if (style === "single") {
+                    top = "┌" + "─".repeat(width - 2) + "┐";
+                    middle = "│";
+                    bottom = "└" + "─".repeat(width - 2) + "┘";
+                } else if (style === "double") {
+                    top = "╔" + "═".repeat(width - 2) + "╗";
+                    middle = "║";
+                    bottom = "╚" + "═".repeat(width - 2) + "╝";
+                } else if (style === "rounded") {
+                    top = "╭" + "─".repeat(width - 2) + "╮";
+                    middle = "│";
+                    bottom = "╰" + "─".repeat(width - 2) + "╯";
+                }
+
+                var lines = [];
+                lines.push(top);
+
+                var wrappedLines = wrapText(text, width - 4);
+                if (wrappedLines.length === 0) {
+                    lines.push(middle + " ".repeat(width - 2) + middle);
+                } else {
+                    for (var i = 0; i < wrappedLines.length; i++) {
+                        var line = wrappedLines[i];
+                        var padding = width - 2 - line.length;
+                        var leftPad = Math.floor(padding / 2);
+                        var rightPad = padding - leftPad;
+                        lines.push(middle + " ".repeat(leftPad) + line + " ".repeat(rightPad) + middle);
+                    }
+                }
+
+                lines.push(bottom);
+                return lines;
+            }
+
+            function asciiRatingBar(value) {
+                if (!value || value === 0) return "☆☆☆☆☆ 0%";
+
+                var stars = "";
+                var percent = Math.round(value * 100);
+
+                for (var i = 0; i < 5; i++) {
+                    if (value >= (i + 1) * 0.2) {
+                        stars += "★";
+                    } else if (value >= i * 0.2 + 0.1) {
+                        stars += "½";
+                    } else {
+                        stars += "☆";
+                    }
+                }
+
+                return stars + " " + percent + "%";
+            }
+
+            function asciiPlayCount(count) {
+                if (!count || count === 0) return "0 times";
+
+                var bars = "";
+                var intensity = Math.min(Math.floor(Math.log10(count + 1) * 2), 8);
+
+                for (var i = 0; i < 8; i++) {
+                    if (i < intensity) {
+                        bars += "█";
+                    } else {
+                        bars += "░";
+                    }
+                }
+
+                return bars + " " + count + (count === 1 ? " play" : " plays");
+            }
+
             if (args.length === 0 && (flags.collection === undefined || flags.index === undefined)) {
                 return {
                     stdout: [],
-                    stderr: ["Not enough arguments. Usage: info <game_title|index|@collection:index> [--collection=<n>] [--index=<n>] [-d|--description]"],
+                    stderr: ["Not enough arguments. Usage: info <game_title|index|@collection:index> [--collection=<n>] [--index=<n>] [-d|--description] [-a|--ascii]"],
                     exitCode: 1,
                     sideEffects: {}
                 };
@@ -1761,7 +1892,6 @@ function registerTerminalCommands(kernel) {
 
                 if (collectionName === "all-games") collectionName = "all";
                 if (collectionName === "allgames") collectionName = "all";
-
 
                 if (collectionName === "favorites" || collectionName === "fav") {
                     var favIndex = 0;
@@ -1891,7 +2021,6 @@ function registerTerminalCommands(kernel) {
 
                 if (collectionName === "all-games") collectionName = "all";
                 if (collectionName === "allgames") collectionName = "all";
-
 
                 if (collectionName === "favorites" || collectionName === "fav") {
                     var favIndex = 0;
@@ -2037,104 +2166,190 @@ function registerTerminalCommands(kernel) {
             }
 
             var stdout = [];
+            var useAscii = flags.a !== undefined || flags.ascii !== undefined;
 
-            stdout.push(repeatString("=", 40));
-            stdout.push("GAME INFORMATION");
-            stdout.push(repeatString("=", 40));
-            stdout.push("");
-            stdout.push("Title: " + game.title);
+            if (useAscii) {
 
-            if (game.developer) {
-                stdout.push("Developer: " + game.developer);
-            }
-
-            if (game.publisher) {
-                stdout.push("Publisher: " + game.publisher);
-            }
-
-            if (game.genre) {
-                stdout.push("Genre: " + game.genre);
-            }
-
-            if (game.releaseYear > 0) {
-                var dateParts = [];
-                if (game.releaseYear > 0) dateParts.push(game.releaseYear);
-                if (game.releaseMonth > 0) dateParts.push(game.releaseMonth.toString());
-                if (game.releaseDay > 0) dateParts.push(game.releaseDay.toString());
-                stdout.push("Release: " + dateParts.join("-"));
-            }
-
-            if (game.players > 0) {
-                stdout.push("Players: " + game.players);
-            }
-
-            if (game.rating > 0) {
-                stdout.push("Rating: " + Math.round(game.rating * 100) + "%");
-            }
-
-            if (game.playCount > 0) {
-                stdout.push("Play count: " + game.playCount);
-            }
-
-            if (game.playTime > 0) {
-                var hours = Math.floor(game.playTime / 3600);
-                var minutes = Math.floor((game.playTime % 3600) / 60);
-                stdout.push("Play Time: " + hours + "h " + minutes + "m");
-            } else {
-                stdout.push("Play Time: 0h 0m");
-            }
-
-            if (game.lastPlayed && game.lastPlayed > 0) {
-                var lastDate = new Date(game.lastPlayed);
-                var now = new Date();
-                var diffMs = now - lastDate;
-                var diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-                if (diffDays === 0) {
-                    var diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-                    if (diffHours === 0) {
-                        var diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-                        stdout.push("Last Played: " + diffMinutes + " minutes ago | " + lastDate.toLocaleDateString());
-                    } else {
-                        stdout.push("Last Played: " + diffHours + " hours ago | " + lastDate.toLocaleDateString());
-                    }
-                } else {
-                    stdout.push("Last Played: " + diffDays + " days ago | " + lastDate.toLocaleDateString());
-                }
-            } else {
-                stdout.push("Last Played: Never");
-            }
-
-            stdout.push("Favorite: " + (game.favorite ? "yes" : "no"));
-
-            if ((flags.d !== undefined || flags.description !== undefined)) {
+                var titleBox = asciiBox(game.title, 50, "double");
+                stdout = stdout.concat(titleBox);
                 stdout.push("");
-                stdout.push("Description:");
 
-                if (game.description) {
-                    var wrappedLines = wrapText(game.description, 70);
+                stdout.push("║ " + padRight("DEVELOPER:", 15) + " " + (game.developer || "Unknown"));
+                stdout.push("║ " + padRight("PUBLISHER:", 15) + " " + (game.publisher || "Unknown"));
+                stdout.push("║ " + padRight("GENRE:", 15) + " " + (game.genre || "Unknown"));
 
-                    if (wrappedLines.length === 0) {
-                        stdout.push("  no description");
-                    } else {
-                        for (var i = 0; i < wrappedLines.length; i++) {
-                            stdout.push("  " + wrappedLines[i]);
-                        }
+                if (game.releaseYear > 0) {
+                    stdout.push("║ " + padRight("RELEASED:", 15) + " " + game.releaseYear +
+                    (game.releaseMonth > 0 ? "-" + padLeft(game.releaseMonth.toString(), 2, '0') : "") +
+                    (game.releaseDay > 0 ? "-" + padLeft(game.releaseDay.toString(), 2, '0') : ""));
+                }
+
+                if (game.players > 0) {
+                    var playerIcons = "";
+                    for (var i = 0; i < Math.min(game.players, 4); i++) {
+                        playerIcons += "👤";
+                    }
+                    if (game.players > 4) playerIcons += "…";
+                    stdout.push("║ " + padRight("PLAYERS:", 15) + " " + game.players + " " + playerIcons);
+                }
+
+                if (game.rating > 0) {
+                    stdout.push("║ " + padRight("RATING:", 15) + " " + asciiRatingBar(game.rating));
+                }
+
+                stdout.push("║ " + padRight("PLAY TIME:", 15) + " " + formatPlayTime(game.playTime));
+
+                if (game.playCount > 0) {
+                    stdout.push("║ " + padRight("PLAYS:", 15) + " " + asciiPlayCount(game.playCount));
+                }
+
+                if (game.lastPlayed && game.lastPlayed > 0) {
+                    var lastDate = new Date(game.lastPlayed);
+                    var now = new Date();
+                    var diffDays = Math.floor((now - lastDate) / (1000 * 60 * 60 * 24));
+
+                    var recencyIcon;
+                    if (diffDays === 0) recencyIcon = "🟢";
+                    else if (diffDays < 7) recencyIcon = "🟡";
+                    else if (diffDays < 30) recencyIcon = "🟠";
+                    else recencyIcon = "🔴";
+
+                    stdout.push("║ " + padRight("LAST PLAYED:", 15) + " " + recencyIcon + " " +
+                    formatDateRelative(lastDate) + " (" + lastDate.toLocaleDateString() + ")");
+                } else {
+                    stdout.push("║ " + padRight("LAST PLAYED:", 15) + " ⚫ Never");
+                }
+
+                stdout.push("║ " + padRight("FAVORITE:", 15) + " " + asciiCheckbox(game.favorite));
+
+                if ((flags.d !== undefined || flags.description !== undefined) && game.description) {
+                    stdout.push("");
+                    stdout.push("╔" + "═".repeat(48) + "╗");
+                    stdout.push("║" + centerText(" DESCRIPTION ", 48, "═") + "║");
+
+                    var wrappedDesc = wrapText(game.description, 46);
+                    for (var i = 0; i < wrappedDesc.length; i++) {
+                        stdout.push("║ " + padRight(wrappedDesc[i], 46) + " ║");
+                    }
+
+                    stdout.push("╚" + "═".repeat(48) + "╝");
+                }
+
+                stdout.push("");
+                stdout.push("╔" + "═".repeat(48) + "╗");
+                stdout.push("║" + centerText(" COLLECTIONS ", 48, "═") + "║");
+
+                if (game.collections && game.collections.count > 0) {
+                    for (var i = 0; i < game.collections.count; i++) {
+                        var coll = game.collections.get(i);
+                        var bullet = (i % 2 === 0) ? "◆" : "◈";
+                        stdout.push("║ " + bullet + " " + padRight(coll.name, 44) + " ║");
                     }
                 } else {
-                    stdout.push("  no description");
+                    stdout.push("║ " + centerText("(no collections)", 46) + " ║");
                 }
-            }
 
-            stdout.push("");
-            stdout.push("Collections:");
-            if (game.collections && game.collections.count > 0) {
-                for (var i = 0; i < game.collections.count; i++) {
-                    var coll = game.collections.get(i);
-                    stdout.push("  • " + coll.name);
-                }
+                stdout.push("╚" + "═".repeat(48) + "╝");
+
             } else {
-                stdout.push("  (no collections)");
+                stdout.push(repeatString("=", 40));
+                stdout.push("GAME INFORMATION");
+                stdout.push(repeatString("=", 40));
+                stdout.push("");
+                stdout.push("Title: " + game.title);
+
+                if (game.developer) {
+                    stdout.push("Developer: " + game.developer);
+                }
+
+                if (game.publisher) {
+                    stdout.push("Publisher: " + game.publisher);
+                }
+
+                if (game.genre) {
+                    stdout.push("Genre: " + game.genre);
+                }
+
+                if (game.releaseYear > 0) {
+                    var dateParts = [];
+                    if (game.releaseYear > 0) dateParts.push(game.releaseYear);
+                    if (game.releaseMonth > 0) dateParts.push(game.releaseMonth.toString());
+                    if (game.releaseDay > 0) dateParts.push(game.releaseDay.toString());
+                    stdout.push("Release: " + dateParts.join("-"));
+                }
+
+                if (game.players > 0) {
+                    stdout.push("Players: " + game.players);
+                }
+
+                if (game.rating > 0) {
+                    stdout.push("Rating: " + Math.round(game.rating * 100) + "%");
+                }
+
+                if (game.playCount > 0) {
+                    stdout.push("Play count: " + game.playCount);
+                }
+
+                if (game.playTime > 0) {
+                    var hours = Math.floor(game.playTime / 3600);
+                    var minutes = Math.floor((game.playTime % 3600) / 60);
+                    stdout.push("Play Time: " + hours + "h " + minutes + "m");
+                } else {
+                    stdout.push("Play Time: 0h 0m");
+                }
+
+                if (game.lastPlayed && game.lastPlayed > 0) {
+                    var lastDate = new Date(game.lastPlayed);
+                    var now = new Date();
+                    var diffMs = now - lastDate;
+                    var diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+                    if (diffDays === 0) {
+                        var diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                        if (diffHours === 0) {
+                            var diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+                            stdout.push("Last Played: " + diffMinutes + " minutes ago | " + lastDate.toLocaleDateString());
+                        } else {
+                            stdout.push("Last Played: " + diffHours + " hours ago | " + lastDate.toLocaleDateString());
+                        }
+                    } else {
+                        stdout.push("Last Played: " + diffDays + " days ago | " + lastDate.toLocaleDateString());
+                    }
+                } else {
+                    stdout.push("Last Played: Never");
+                }
+
+                stdout.push("Favorite: " + (game.favorite ? "yes" : "no"));
+
+                if ((flags.d !== undefined || flags.description !== undefined)) {
+                    stdout.push("");
+                    stdout.push("Description:");
+
+                    if (game.description) {
+                        var wrappedLines = wrapText(game.description, 70);
+
+                        if (wrappedLines.length === 0) {
+                            stdout.push("  no description");
+                        } else {
+                            for (var i = 0; i < wrappedLines.length; i++) {
+                                stdout.push("  " + wrappedLines[i]);
+                            }
+                        }
+                    } else {
+                        stdout.push("  no description");
+                    }
+                }
+
+                stdout.push("");
+                stdout.push("Collections:");
+                if (game.collections && game.collections.count > 0) {
+                    for (var i = 0; i < game.collections.count; i++) {
+                        var coll = game.collections.get(i);
+                        stdout.push("  • " + coll.name);
+                    }
+                } else {
+                    stdout.push("  (no collections)");
+                }
             }
 
             return {
@@ -2145,6 +2360,53 @@ function registerTerminalCommands(kernel) {
             };
         }
     });
+
+    function repeatString(str, count) {
+        return new Array(count + 1).join(str);
+    }
+
+    function padRight(text, width) {
+        text = text || "";
+        if (text.length >= width) return text;
+        return text + " ".repeat(width - text.length);
+    }
+
+    function padLeft(text, width, padChar) {
+        padChar = padChar || " ";
+        text = text || "";
+        if (text.length >= width) return text;
+        return padChar.repeat(width - text.length) + text;
+    }
+
+    function centerText(text, width, fillChar) {
+        fillChar = fillChar || " ";
+        if (text.length >= width) return text;
+
+        var leftPad = Math.floor((width - text.length) / 2);
+        var rightPad = width - text.length - leftPad;
+
+        return fillChar.repeat(leftPad) + text + fillChar.repeat(rightPad);
+    }
+
+    function formatDateRelative(date) {
+        var now = new Date();
+        var diffMs = now - date;
+        var diffSec = Math.floor(diffMs / 1000);
+        var diffMin = Math.floor(diffSec / 60);
+        var diffHour = Math.floor(diffMin / 60);
+        var diffDay = Math.floor(diffHour / 24);
+
+        if (diffDay > 0) {
+            return diffDay + " day" + (diffDay > 1 ? "s" : "") + " ago";
+        } else if (diffHour > 0) {
+            return diffHour + " hour" + (diffHour > 1 ? "s" : "") + " ago";
+        } else if (diffMin > 0) {
+            return diffMin + " minute" + (diffMin > 1 ? "s" : "") + " ago";
+        } else {
+            return "just now";
+        }
+    }
+
 
     CommandRegistry.register(kernel, "launch", {
         help: "Launch a game by title, number, or from collection",

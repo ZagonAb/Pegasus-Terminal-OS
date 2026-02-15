@@ -203,6 +203,7 @@ info <identifier> [options]
 
 **Options:**
 - `-d` or `--description` - Include game description
+- `-a` or `--ascii` - Display information with ASCII visualizations (ratings, play counts, etc.)
 
 **Information Displayed:**
 - Title, developer, publisher
@@ -216,6 +217,8 @@ info <identifier> [options]
 info @snes:5
 info "The Legend of Zelda" --description
 info 42
+info "Super Metroid" -a
+info @nes:12 --ascii --description
 ```
 
 **Aliases:** `show`, `detail`
