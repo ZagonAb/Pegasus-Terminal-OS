@@ -6,8 +6,8 @@ More information:
 Command Reference & Documentation
 [https://github.com/ZagonAb/Pegasus-Terminal-OS/blob/main/PEGASUS_TERMINAL_OS.md](https://github.com/ZagonAb/Pegasus-Terminal-OS/blob/main/PEGASUS_TERMINAL_OS.md)
 
-![screen0](https://github.com/ZagonAb/Pegasus-Terminal-OS/blob/deb407a9497d29f432c3403880fb7c14a5458d37/.meta/screenshots/screen0.png)
-
+![screen0](https://github.com/ZagonAb/Pegasus-Terminal-OS/blob/7425a378ffd2d3fecf12c97f0c4828d762bc1046/.meta/screenshots/screen0.png)
+![screen1](https://github.com/ZagonAb/Pegasus-Terminal-OS/blob/7425a378ffd2d3fecf12c97f0c4828d762bc1046/.meta/screenshots/screen1.png)
 ---
 
 ## Third-Party Fonts & Licenses
