@@ -590,8 +590,6 @@ function registerTerminalCommands(kernel) {
         }
     });
 
-
-
     CommandRegistry.register(kernel, "clear", {
         help: "Clear the terminal screen",
         usage: "clear",
