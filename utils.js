@@ -267,12 +267,18 @@ function registerTerminalCommands(kernel) {
                 stdout.push("");
 
                 var presets = [
-                    { name: "default",  desc: "Clean balanced CRT",
-                        specs: "I:0.01 C:1600 Curv:0.0 Fade:0.0 FadeOp:0.0 Zoom:1.0" },
-                        { name: "vhs",      desc: "VHS tape aesthetic",
-                            specs: "I:0.15 C:1400 Curv:0.25 Temp:1.15 Chroma:1.5 Fade:0.04" },
-                            { name: "retro",    desc: "90s gaming monitor",
-                                specs: "I:0.12 C:1500 Curv:0.15 Temp:1.08 Chroma:0.8 Fade:0.03" }
+                    {
+                        name: "default", desc: "Clean balanced CRT",
+                        specs: "I:0.01 C:1600 Curv:0.0 Fade:0.0 FadeOp:0.0 Zoom:1.0"
+                    },
+                    {
+                        name: "vhs", desc: "VHS tape aesthetic",
+                        specs: "I:0.15 C:1400 Curv:0.25 Temp:1.15 Chroma:1.5 Fade:0.04"
+                    },
+                    {
+                        name: "retro", desc: "90s gaming monitor",
+                        specs: "I:0.12 C:1500 Curv:0.15 Temp:1.08 Chroma:0.8 Fade:0.03"
+                    }
                 ];
 
                 var currentPreset = scanlines.currentPreset;
@@ -652,7 +658,7 @@ function registerTerminalCommands(kernel) {
                     promptText = root.currentPromptStyle.generatePrompt(kernel);
                 } else {
                     promptText = kernel.currentUser + "@pegasus:" +
-                    (kernel.getUserPath ? kernel.getUserPath(kernel.cwd) : kernel.cwd) + "$ ";
+                        (kernel.getUserPath ? kernel.getUserPath(kernel.cwd) : kernel.cwd) + "$ ";
                 }
 
                 terminalModel.append({
@@ -702,7 +708,7 @@ function registerTerminalCommands(kernel) {
                     displayPath = "/home/" + kernel.currentUser + "/LastPlayed";
                 }
                 else if (displayPath.startsWith("/Collections/")) {
-                    var parts = displayPath.split("/").filter(function(s) { return s !== ""; });
+                    var parts = displayPath.split("/").filter(function (s) { return s !== ""; });
                     if (parts.length >= 2) {
                         var collectionName = parts[1];
                         displayPath = "/home/" + kernel.currentUser + "/Collections/" + collectionName + "/games";
@@ -767,9 +773,9 @@ function registerTerminalCommands(kernel) {
             if (!resolved.contents || resolved.contents.length === 0) {
                 return {
                     stdout: ["(empty directory)"],
-                             stderr: [],
-                             exitCode: 0,
-                             sideEffects: {}
+                    stderr: [],
+                    exitCode: 0,
+                    sideEffects: {}
                 };
             }
 
@@ -826,7 +832,7 @@ function registerTerminalCommands(kernel) {
                 var gameIndex = 0;
                 for (var i = 0; i < items.length; i++) {
                     var item = items[i];
-                    
+
                     if (item.type === "game") {
                         if (i >= startOffset && i < startOffset + displayItems.length) {
                             var prefix = getFilePrefix(item.type);
@@ -1067,7 +1073,7 @@ function registerTerminalCommands(kernel) {
     });
 
     function getFilePrefix(type) {
-        switch(type) {
+        switch (type) {
             case "directory": return "";
             case "collection": return "";
             case "game": return "";
@@ -1194,22 +1200,28 @@ function registerTerminalCommands(kernel) {
             else if (targetPath.startsWith("~/")) {
                 targetPath = "/" + targetPath.substring(2);
             }
+            else if (targetPath.startsWith("/genre/") ||
+                targetPath.startsWith("/developer/") ||
+                targetPath.startsWith("/publisher/") ||
+                targetPath.startsWith("/year/") ||
+                targetPath.startsWith("/rating/")) {
+            }
             else if (targetPath === "/home/" + kernel.currentUser ||
                 targetPath === "/home/" + kernel.currentUser + "/") {
                 targetPath = "/";
-                }
-                else if (targetPath.startsWith("/home/" + kernel.currentUser + "/")) {
-                    targetPath = "/" + targetPath.substring(("/home/" + kernel.currentUser + "/").length);
-                }
+            }
+            else if (targetPath.startsWith("/home/" + kernel.currentUser + "/")) {
+                targetPath = "/" + targetPath.substring(("/home/" + kernel.currentUser + "/").length);
+            }
 
-                var resolved = kernel.resolvePath(targetPath);
+            var resolved = kernel.resolvePath(targetPath);
 
             if (resolved.error || resolved.type === "error") {
                 return {
                     stdout: [],
                     stderr: ["cd: " + (resolved.error || "No such directory") + ": " + targetPath],
-                             exitCode: 1,
-                             sideEffects: {}
+                    exitCode: 1,
+                    sideEffects: {}
                 };
             }
 
@@ -1226,9 +1238,9 @@ function registerTerminalCommands(kernel) {
             kernel.cwd = newCwd;
 
             kernel.prompt = kernel.currentUser + "@pegasus:" +
-            (kernel.getUserPath ? kernel.getUserPath(newCwd) : newCwd) + "$ ";
+                (kernel.getUserPath ? kernel.getUserPath(newCwd) : newCwd) + "$ ";
             if (newCwd.toLowerCase().indexOf("/collections/") === 0) {
-                var parts = newCwd.split("/").filter(function(s) { return s !== ""; });
+                var parts = newCwd.split("/").filter(function (s) { return s !== ""; });
                 if (parts.length >= 2 && parts[0].toLowerCase() === "collections") {
                     var collName = parts[1];
                     kernel.activeCollection = kernel.findCollection(collName);
@@ -1570,7 +1582,7 @@ function registerTerminalCommands(kernel) {
 
     CommandRegistry.register(kernel, "use", {
         help: "Navigate to a collection directory",
-        usage: "use <collection_name>",
+        usage: "use <collection_name>, use genre/<index>,<name>",
         minArgs: 1,
         maxArgs: 1,
         aliases: ["goto", "collection"],
@@ -1628,46 +1640,64 @@ function registerTerminalCommands(kernel) {
             }
 
             else {
-                var collection = null;
-                for (var i = 0; i < api.collections.count; i++) {
-                    var coll = api.collections.get(i);
-                    if (coll.shortName.toLowerCase() === collectionName) {
-                        collection = coll;
-                        break;
+                var dynamicResult = kernel.resolveDynamicCollectionName(collectionName);
+                if (dynamicResult) {
+                    targetPath = dynamicResult.path;
+                    var resolved = dynamicResult.resolved;
+                    collectionFullName = resolved.name || collectionName;
+                    collectionShortName = collectionName;
+                    gameCount = 0;
+                    if (resolved.contents) {
+                        for (var i = 0; i < resolved.contents.length; i++) {
+                            if (resolved.contents[i].type === "game") gameCount++;
+                        }
                     }
-                }
-
-                if (!collection) {
+                } else {
+                    var collection = null;
                     for (var i = 0; i < api.collections.count; i++) {
                         var coll = api.collections.get(i);
-                        if (coll.name.toLowerCase() === collectionName) {
+                        if (coll.shortName.toLowerCase() === collectionName) {
                             collection = coll;
                             break;
                         }
                     }
+
+                    if (!collection) {
+                        for (var i = 0; i < api.collections.count; i++) {
+                            var coll = api.collections.get(i);
+                            if (coll.name.toLowerCase() === collectionName) {
+                                collection = coll;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (!collection) {
+                        return {
+                            stdout: [
+                                "Collection not found: " + collectionName,
+                                "",
+                                "Available collections:",
+                                "  • all, favorites, mostplayed, lastplayed",
+                                "  • genre/name|index, developer/name|index, publisher/name|index, year/year, rating/range|index",
+                                "  • Use 'collections' to see all available collections",
+                                "Examples",
+                                "  • use genre/0 | use genre/action | use year/1992 | use rating/60plust | use rating/0",
+
+                            ],
+                            stderr: [],
+                            exitCode: 1,
+                            sideEffects: {}
+                        };
+                    }
+
+                    targetPath = "/Collections/" + collection.shortName + "/games";
+                    collectionFullName = collection.name;
+                    collectionShortName = collection.shortName;
+                    gameCount = collection.games.count;
+
+                    kernel.activeCollection = collection;
                 }
-
-                if (!collection) {
-                    return {
-                        stdout: [
-                            "Collection not found: " + collectionName,
-                            "",
-                            "Available collections:",
-                            "  • all, favorites, mostplayed, lastplayed",
-                            "  • Use 'collections' to see all available collections"
-                        ],
-                        stderr: [],
-                        exitCode: 1,
-                        sideEffects: {}
-                    };
-                }
-
-                targetPath = "/Collections/" + collection.shortName + "/games";
-                collectionFullName = collection.name;
-                collectionShortName = collection.shortName;
-                gameCount = collection.games.count;
-
-                kernel.activeCollection = collection;
             }
 
 
@@ -1688,14 +1718,14 @@ function registerTerminalCommands(kernel) {
             var infoLines = [
                 collectionFullName,
                 repeatString("=", 40),
-                             "Games: " + gameCount,
-                             "Location: " + targetPath,
-                             "",
-                             "Quick commands:",
-                             "  ls              - List all games",
-                             "  ls --limit=10   - Show first 10 games",
-                             "  info @" + collectionShortName + ":0    - Game info by index",
-                             "  launch @" + collectionShortName + ":0   - Launch game by index"
+                "Games: " + gameCount,
+                "Location: " + targetPath,
+                "",
+                "Quick commands:",
+                "  ls              - List all games",
+                "  ls --limit=10   - Show first 10 games",
+                "  info @" + collectionShortName + ":0    - Game info by index",
+                "  launch @" + collectionShortName + ":0   - Launch game by index"
             ];
 
             if (gameCount > 50) {
@@ -1918,8 +1948,8 @@ function registerTerminalCommands(kernel) {
                     return {
                         stdout: [],
                         stderr: ["Invalid format. Use: @collection:index (e.g., @snes:5)"],
-                             exitCode: 1,
-                             sideEffects: {}
+                        exitCode: 1,
+                        sideEffects: {}
                     };
                 }
 
@@ -1969,7 +1999,7 @@ function registerTerminalCommands(kernel) {
                             gamesArray.push(g);
                         }
                     }
-                    gamesArray.sort(function(a, b) {
+                    gamesArray.sort(function (a, b) {
                         return (b.playTime || 0) - (a.playTime || 0);
                     });
 
@@ -1992,7 +2022,7 @@ function registerTerminalCommands(kernel) {
                             gamesArray.push(g);
                         }
                     }
-                    gamesArray.sort(function(a, b) {
+                    gamesArray.sort(function (a, b) {
                         return (b.lastPlayed || 0) - (a.lastPlayed || 0);
                     });
 
@@ -2012,42 +2042,57 @@ function registerTerminalCommands(kernel) {
                         return {
                             stdout: [],
                             stderr: ["Game index " + gameIndex + " not found (max: " + (api.allGames.count - 1) + ")"],
-                             exitCode: 1,
-                             sideEffects: {}
+                            exitCode: 1,
+                            sideEffects: {}
                         };
                     }
                     game = api.allGames.get(gameIndex);
                 }
 
                 else {
-                    var collection = null;
-                    for (var i = 0; i < api.collections.count; i++) {
-                        var coll = api.collections.get(i);
-                        if (coll.shortName.toLowerCase() === collectionName) {
-                            collection = coll;
-                            break;
+                    var dynamicResult = kernel.resolveDynamicCollectionName(collectionName);
+                    if (dynamicResult) {
+                        var dynamicGames = kernel.getGamesFromDynamicPath(dynamicResult.path);
+                        if (gameIndex >= 0 && gameIndex < dynamicGames.length) {
+                            game = dynamicGames[gameIndex];
+                        } else {
+                            return {
+                                stdout: [],
+                                stderr: ["Game index " + gameIndex + " not found in " + collectionName + " (max: " + (dynamicGames.length - 1) + ")"],
+                                exitCode: 1,
+                                sideEffects: {}
+                            };
                         }
-                    }
+                    } else {
+                        var collection = null;
+                        for (var i = 0; i < api.collections.count; i++) {
+                            var coll = api.collections.get(i);
+                            if (coll.shortName.toLowerCase() === collectionName) {
+                                collection = coll;
+                                break;
+                            }
+                        }
 
-                    if (!collection) {
-                        return {
-                            stdout: [],
-                            stderr: ["Collection not found: " + collectionName],
-                            exitCode: 1,
-                            sideEffects: {}
-                        };
-                    }
+                        if (!collection) {
+                            return {
+                                stdout: [],
+                                stderr: ["Collection not found: " + collectionName],
+                                exitCode: 1,
+                                sideEffects: {}
+                            };
+                        }
 
-                    if (gameIndex >= collection.games.count) {
-                        return {
-                            stdout: [],
-                            stderr: ["Game index " + gameIndex + " not found in " + collection.name],
-                            exitCode: 1,
-                            sideEffects: {}
-                        };
-                    }
+                        if (gameIndex >= collection.games.count) {
+                            return {
+                                stdout: [],
+                                stderr: ["Game index " + gameIndex + " not found in " + collection.name],
+                                exitCode: 1,
+                                sideEffects: {}
+                            };
+                        }
 
-                    game = collection.games.get(gameIndex);
+                        game = collection.games.get(gameIndex);
+                    }
                 }
             }
 
@@ -2098,7 +2143,7 @@ function registerTerminalCommands(kernel) {
                             gamesArray.push(g);
                         }
                     }
-                    gamesArray.sort(function(a, b) {
+                    gamesArray.sort(function (a, b) {
                         return (b.playTime || 0) - (a.playTime || 0);
                     });
 
@@ -2121,7 +2166,7 @@ function registerTerminalCommands(kernel) {
                             gamesArray.push(g);
                         }
                     }
-                    gamesArray.sort(function(a, b) {
+                    gamesArray.sort(function (a, b) {
                         return (b.lastPlayed || 0) - (a.lastPlayed || 0);
                     });
 
@@ -2141,42 +2186,57 @@ function registerTerminalCommands(kernel) {
                         return {
                             stdout: [],
                             stderr: ["Game index " + gameIndex + " not found (max: " + (api.allGames.count - 1) + ")"],
-                             exitCode: 1,
-                             sideEffects: {}
+                            exitCode: 1,
+                            sideEffects: {}
                         };
                     }
                     game = api.allGames.get(gameIndex);
                 }
 
                 else {
-                    var collection = null;
-                    for (var i = 0; i < api.collections.count; i++) {
-                        var coll = api.collections.get(i);
-                        if (coll.shortName.toLowerCase() === collectionName) {
-                            collection = coll;
-                            break;
+                    var dynamicResult = kernel.resolveDynamicCollectionName(collectionName);
+                    if (dynamicResult) {
+                        var dynamicGames = kernel.getGamesFromDynamicPath(dynamicResult.path);
+                        if (gameIndex >= 0 && gameIndex < dynamicGames.length) {
+                            game = dynamicGames[gameIndex];
+                        } else {
+                            return {
+                                stdout: [],
+                                stderr: ["Game index " + gameIndex + " not found in " + collectionName + " (max: " + (dynamicGames.length - 1) + ")"],
+                                exitCode: 1,
+                                sideEffects: {}
+                            };
                         }
-                    }
+                    } else {
+                        var collection = null;
+                        for (var i = 0; i < api.collections.count; i++) {
+                            var coll = api.collections.get(i);
+                            if (coll.shortName.toLowerCase() === collectionName) {
+                                collection = coll;
+                                break;
+                            }
+                        }
 
-                    if (!collection) {
-                        return {
-                            stdout: [],
-                            stderr: ["Collection not found: " + collectionName],
-                            exitCode: 1,
-                            sideEffects: {}
-                        };
-                    }
+                        if (!collection) {
+                            return {
+                                stdout: [],
+                                stderr: ["Collection not found: " + collectionName],
+                                exitCode: 1,
+                                sideEffects: {}
+                            };
+                        }
 
-                    if (gameIndex >= collection.games.count) {
-                        return {
-                            stdout: [],
-                            stderr: ["Game index " + gameIndex + " not found in " + collection.name],
-                            exitCode: 1,
-                            sideEffects: {}
-                        };
-                    }
+                        if (gameIndex >= collection.games.count) {
+                            return {
+                                stdout: [],
+                                stderr: ["Game index " + gameIndex + " not found in " + collection.name],
+                                exitCode: 1,
+                                sideEffects: {}
+                            };
+                        }
 
-                    game = collection.games.get(gameIndex);
+                        game = collection.games.get(gameIndex);
+                    }
                 }
             }
 
@@ -2184,15 +2244,37 @@ function registerTerminalCommands(kernel) {
                 var gameNumber = parseInt(identifier);
 
                 if (!isNaN(gameNumber) && gameNumber.toString() === identifier) {
-                    if (gameNumber >= 0 && gameNumber < api.allGames.count) {
-                        game = api.allGames.get(gameNumber);
-                    } else {
-                        return {
-                            stdout: [],
-                            stderr: ["Game index " + gameNumber + " not found. Valid range: 0-" + (api.allGames.count - 1)],
-                             exitCode: 1,
-                             sideEffects: {}
-                        };
+                    if (kernel.lastGameListing && kernel.lastGameListing.length > 0) {
+                        var foundInListing = null;
+                        for (var i = 0; i < kernel.lastGameListing.length; i++) {
+                            if (kernel.lastGameListing[i].index === gameNumber) {
+                                foundInListing = kernel.lastGameListing[i];
+                                break;
+                            }
+                        }
+                        if (foundInListing) {
+                            game = kernel.findGame(foundInListing.title);
+                        }
+                    }
+
+                    if (!game && kernel.isDynamicPath(kernel.cwd)) {
+                        var dynamicGames = kernel.getGamesForCurrentPath();
+                        if (gameNumber >= 0 && gameNumber < dynamicGames.length) {
+                            game = dynamicGames[gameNumber];
+                        }
+                    }
+
+                    if (!game) {
+                        if (gameNumber >= 0 && gameNumber < api.allGames.count) {
+                            game = api.allGames.get(gameNumber);
+                        } else {
+                            return {
+                                stdout: [],
+                                stderr: ["Game index " + gameNumber + " not found. Valid range: 0-" + (api.allGames.count - 1)],
+                                exitCode: 1,
+                                sideEffects: {}
+                            };
+                        }
                     }
                 }
 
@@ -2205,8 +2287,8 @@ function registerTerminalCommands(kernel) {
                 return {
                     stdout: [],
                     stderr: ["Game not found: " + (identifier || "")],
-                             exitCode: 1,
-                             sideEffects: {}
+                    exitCode: 1,
+                    sideEffects: {}
                 };
             }
 
@@ -2225,8 +2307,8 @@ function registerTerminalCommands(kernel) {
 
                 if (game.releaseYear > 0) {
                     stdout.push("║ " + padRight("RELEASED:", 15) + " " + game.releaseYear +
-                    (game.releaseMonth > 0 ? "-" + padLeft(game.releaseMonth.toString(), 2, '0') : "") +
-                    (game.releaseDay > 0 ? "-" + padLeft(game.releaseDay.toString(), 2, '0') : ""));
+                        (game.releaseMonth > 0 ? "-" + padLeft(game.releaseMonth.toString(), 2, '0') : "") +
+                        (game.releaseDay > 0 ? "-" + padLeft(game.releaseDay.toString(), 2, '0') : ""));
                 }
 
                 if (game.players > 0) {
@@ -2260,7 +2342,7 @@ function registerTerminalCommands(kernel) {
                     else recencyIcon = "🔴";
 
                     stdout.push("║ " + padRight("LAST PLAYED:", 15) + " " + recencyIcon + " " +
-                    formatDateRelative(lastDate) + " (" + lastDate.toLocaleDateString() + ")");
+                        formatDateRelative(lastDate) + " (" + lastDate.toLocaleDateString() + ")");
                 } else {
                     stdout.push("║ " + padRight("LAST PLAYED:", 15) + " ⚫ Never");
                 }
@@ -2392,9 +2474,33 @@ function registerTerminalCommands(kernel) {
                         var coll = game.collections.get(i);
                         stdout.push("  • " + coll.name);
                     }
+
+                    stdout.push("");
+                    stdout.push("Real Collection Index:");
+                    for (var i = 0; i < game.collections.count; i++) {
+                        var coll = game.collections.get(i);
+                        var indexInColl = -1;
+                        for (var j = 0; j < coll.games.count; j++) {
+                            if (coll.games.get(j).title === game.title) {
+                                indexInColl = j;
+                                break;
+                            }
+                        }
+                        stdout.push("  • " + coll.shortName + ": " + indexInColl);
+                    }
                 } else {
                     stdout.push("  (no collections)");
                 }
+
+                var globalIndex = -1;
+                for (var i = 0; i < api.allGames.count; i++) {
+                    if (api.allGames.get(i).title === game.title) {
+                        globalIndex = i;
+                        break;
+                    }
+                }
+                stdout.push("");
+                stdout.push("Global Index: " + globalIndex);
             }
 
             return {
@@ -2480,8 +2586,8 @@ function registerTerminalCommands(kernel) {
                     return {
                         stdout: [],
                         stderr: ["Invalid format. Use: @collection:index (e.g., @mame:5)"],
-                             exitCode: 1,
-                             sideEffects: {}
+                        exitCode: 1,
+                        sideEffects: {}
                     };
                 }
 
@@ -2533,7 +2639,7 @@ function registerTerminalCommands(kernel) {
                             gamesArray.push(g);
                         }
                     }
-                    gamesArray.sort(function(a, b) {
+                    gamesArray.sort(function (a, b) {
                         return (b.playTime || 0) - (a.playTime || 0);
                     });
 
@@ -2555,7 +2661,7 @@ function registerTerminalCommands(kernel) {
                             gamesArray.push(g);
                         }
                     }
-                    gamesArray.sort(function(a, b) {
+                    gamesArray.sort(function (a, b) {
                         return (b.lastPlayed || 0) - (a.lastPlayed || 0);
                     });
 
@@ -2574,41 +2680,56 @@ function registerTerminalCommands(kernel) {
                         return {
                             stdout: [],
                             stderr: ["Game index " + gameIndex + " not found in all-games (max: " + (api.allGames.count - 1) + ")"],
-                             exitCode: 1,
-                             sideEffects: {}
+                            exitCode: 1,
+                            sideEffects: {}
                         };
                     }
                     game = api.allGames.get(gameIndex);
 
                 } else {
-                    var collection = null;
-                    for (var i = 0; i < api.collections.count; i++) {
-                        var coll = api.collections.get(i);
-                        if (coll.shortName.toLowerCase() === collectionName) {
-                            collection = coll;
-                            break;
+                    var dynamicResult = kernel.resolveDynamicCollectionName(collectionName);
+                    if (dynamicResult) {
+                        var dynamicGames = kernel.getGamesFromDynamicPath(dynamicResult.path);
+                        if (gameIndex >= 0 && gameIndex < dynamicGames.length) {
+                            game = dynamicGames[gameIndex];
+                        } else {
+                            return {
+                                stdout: [],
+                                stderr: ["Game index " + gameIndex + " not found in " + collectionName + " (max: " + (dynamicGames.length - 1) + ")"],
+                                exitCode: 1,
+                                sideEffects: {}
+                            };
                         }
-                    }
+                    } else {
+                        var collection = null;
+                        for (var i = 0; i < api.collections.count; i++) {
+                            var coll = api.collections.get(i);
+                            if (coll.shortName.toLowerCase() === collectionName) {
+                                collection = coll;
+                                break;
+                            }
+                        }
 
-                    if (!collection) {
-                        return {
-                            stdout: [],
-                            stderr: ["Collection not found: " + collectionName],
-                            exitCode: 1,
-                            sideEffects: {}
-                        };
-                    }
+                        if (!collection) {
+                            return {
+                                stdout: [],
+                                stderr: ["Collection not found: " + collectionName],
+                                exitCode: 1,
+                                sideEffects: {}
+                            };
+                        }
 
-                    if (!collection.games || gameIndex >= collection.games.count) {
-                        return {
-                            stdout: [],
-                            stderr: ["Game index " + gameIndex + " not found in collection: " + collection.name],
-                            exitCode: 1,
-                            sideEffects: {}
-                        };
-                    }
+                        if (!collection.games || gameIndex >= collection.games.count) {
+                            return {
+                                stdout: [],
+                                stderr: ["Game index " + gameIndex + " not found in collection: " + collection.name],
+                                exitCode: 1,
+                                sideEffects: {}
+                            };
+                        }
 
-                    game = collection.games.get(gameIndex);
+                        game = collection.games.get(gameIndex);
+                    }
                 }
             }
 
@@ -2636,40 +2757,55 @@ function registerTerminalCommands(kernel) {
                         return {
                             stdout: [],
                             stderr: ["Game index " + gameIndex + " not found in all-games (max: " + (api.allGames.count - 1) + ")"],
-                             exitCode: 1,
-                             sideEffects: {}
+                            exitCode: 1,
+                            sideEffects: {}
                         };
                     }
                     game = api.allGames.get(gameIndex);
                 } else {
-                    var collection = null;
-                    for (var i = 0; i < api.collections.count; i++) {
-                        var coll = api.collections.get(i);
-                        if (coll.shortName.toLowerCase() === collectionName) {
-                            collection = coll;
-                            break;
+                    var dynamicResult = kernel.resolveDynamicCollectionName(collectionName);
+                    if (dynamicResult) {
+                        var dynamicGames = kernel.getGamesFromDynamicPath(dynamicResult.path);
+                        if (gameIndex >= 0 && gameIndex < dynamicGames.length) {
+                            game = dynamicGames[gameIndex];
+                        } else {
+                            return {
+                                stdout: [],
+                                stderr: ["Game index " + gameIndex + " not found in " + collectionName + " (max: " + (dynamicGames.length - 1) + ")"],
+                                exitCode: 1,
+                                sideEffects: {}
+                            };
                         }
-                    }
+                    } else {
+                        var collection = null;
+                        for (var i = 0; i < api.collections.count; i++) {
+                            var coll = api.collections.get(i);
+                            if (coll.shortName.toLowerCase() === collectionName) {
+                                collection = coll;
+                                break;
+                            }
+                        }
 
-                    if (!collection) {
-                        return {
-                            stdout: [],
-                            stderr: ["Collection not found: " + collectionName],
-                            exitCode: 1,
-                            sideEffects: {}
-                        };
-                    }
+                        if (!collection) {
+                            return {
+                                stdout: [],
+                                stderr: ["Collection not found: " + collectionName],
+                                exitCode: 1,
+                                sideEffects: {}
+                            };
+                        }
 
-                    if (!collection.games || gameIndex >= collection.games.count) {
-                        return {
-                            stdout: [],
-                            stderr: ["Game index " + gameIndex + " not found in collection: " + collection.name],
-                            exitCode: 1,
-                            sideEffects: {}
-                        };
-                    }
+                        if (!collection.games || gameIndex >= collection.games.count) {
+                            return {
+                                stdout: [],
+                                stderr: ["Game index " + gameIndex + " not found in collection: " + collection.name],
+                                exitCode: 1,
+                                sideEffects: {}
+                            };
+                        }
 
-                    game = collection.games.get(gameIndex);
+                        game = collection.games.get(gameIndex);
+                    }
                 }
             }
 
@@ -2678,40 +2814,38 @@ function registerTerminalCommands(kernel) {
 
                 if (!isNaN(gameNumber) && gameNumber.toString() === identifier) {
 
-                    if (gameNumber >= 0 && gameNumber < api.allGames.count) {
-                        game = api.allGames.get(gameNumber);
+                    if (kernel.lastGameListing && kernel.lastGameListing.length > 0) {
+                        var foundGame = null;
+                        for (var i = 0; i < kernel.lastGameListing.length; i++) {
+                            if (kernel.lastGameListing[i].index === gameNumber) {
+                                foundGame = kernel.lastGameListing[i];
+                                break;
+                            }
+                        }
 
-                        if (game) {
+                        if (foundGame) {
+                            gameName = foundGame.title;
+                            game = kernel.findGame(gameName);
+                        }
+                    }
+
+                    if (!game && kernel.isDynamicPath(kernel.cwd)) {
+                        var dynamicGames = kernel.getGamesForCurrentPath();
+                        if (gameNumber >= 0 && gameNumber < dynamicGames.length) {
+                            game = dynamicGames[gameNumber];
+                            gameName = game.title;
                         }
                     }
 
                     if (!game) {
-                        if (kernel.lastGameListing && kernel.lastGameListing.length > 0) {
-                            var foundGame = null;
-                            for (var i = 0; i < kernel.lastGameListing.length; i++) {
-                                if (kernel.lastGameListing[i].index === gameNumber) {
-                                    foundGame = kernel.lastGameListing[i];
-                                    break;
-                                }
-                            }
-
-                            if (foundGame) {
-                                gameName = foundGame.title;
-                                game = kernel.findGame(gameName);
-                            } else {
-                                return {
-                                    stdout: [],
-                                    stderr: ["Game index " + gameNumber + " not found. Valid range: 0-" + (api.allGames.count - 1)],
-                             exitCode: 1,
-                             sideEffects: {}
-                                };
-                            }
+                        if (gameNumber >= 0 && gameNumber < api.allGames.count) {
+                            game = api.allGames.get(gameNumber);
                         } else {
                             return {
                                 stdout: [],
                                 stderr: ["Game index " + gameNumber + " not found. Valid range: 0-" + (api.allGames.count - 1)],
-                             exitCode: 1,
-                             sideEffects: {}
+                                exitCode: 1,
+                                sideEffects: {}
                             };
                         }
                     }
@@ -2726,8 +2860,8 @@ function registerTerminalCommands(kernel) {
                 return {
                     stdout: [],
                     stderr: ["Game not found: " + (identifier || "")],
-                             exitCode: 1,
-                             sideEffects: {}
+                    exitCode: 1,
+                    sideEffects: {}
                 };
             }
 
@@ -2838,14 +2972,23 @@ function registerTerminalCommands(kernel) {
                 }
 
                 if (!game) {
+                    if (kernel.isDynamicPath(kernel.cwd)) {
+                        var dynamicGames = kernel.getGamesForCurrentPath();
+                        if (gameNumber >= 0 && gameNumber < dynamicGames.length) {
+                            game = dynamicGames[gameNumber];
+                        }
+                    }
+                }
+
+                if (!game) {
                     if (gameNumber >= 0 && gameNumber < api.allGames.count) {
                         game = api.allGames.get(gameNumber);
                     } else {
                         return {
                             stdout: [],
                             stderr: ["Game index " + gameNumber + " out of range (0-" + (api.allGames.count - 1) + ")"],
-                             exitCode: 1,
-                             sideEffects: {}
+                            exitCode: 1,
+                            sideEffects: {}
                         };
                     }
                 }
@@ -3086,7 +3229,7 @@ function registerTerminalCommands(kernel) {
                         }
                     }
 
-                    gamesArray.sort(function(a, b) { return b.playTime - a.playTime; });
+                    gamesArray.sort(function (a, b) { return b.playTime - a.playTime; });
                     var topGames = gamesArray.slice(0, 5);
 
                     stdout.push("│  ┌────┬──────────────────────────┬────────────┐");
@@ -3095,8 +3238,8 @@ function registerTerminalCommands(kernel) {
 
                     for (var i = 0; i < topGames.length; i++) {
                         var gameTitle = topGames[i].title.length > 24 ?
-                        topGames[i].title.substring(0, 21) + "..." :
-                        topGames[i].title;
+                            topGames[i].title.substring(0, 21) + "..." :
+                            topGames[i].title;
                         var position = padRight((i + 1).toString(), 2);
                         var titlePadded = padRight(gameTitle, 24);
                         var timePadded = formatPlayTime(topGames[i].playTime);
@@ -3116,8 +3259,8 @@ function registerTerminalCommands(kernel) {
                     stdout.push("│");
 
                     var gameTitle = lastPlayedGame.title.length > 55 ?
-                    lastPlayedGame.title.substring(0, 52) + "..." :
-                    lastPlayedGame.title;
+                        lastPlayedGame.title.substring(0, 52) + "..." :
+                        lastPlayedGame.title;
                     stdout.push("│  Game:       " + padRight(gameTitle, 48));
                     stdout.push("│  Index:      #" + padRight(lastPlayedIndex.toString(), 47));
 
@@ -3126,8 +3269,8 @@ function registerTerminalCommands(kernel) {
                         collectionName = lastPlayedGame.collections.get(0).name;
                     }
                     var collectionDisplay = collectionName.length > 45 ?
-                    collectionName.substring(0, 42) + "..." :
-                    collectionName;
+                        collectionName.substring(0, 42) + "..." :
+                        collectionName;
                     stdout.push("│  Collection: " + padRight(collectionDisplay, 48));
 
                     var lastDate = new Date(lastPlayedGame.lastPlayed);
@@ -3143,11 +3286,11 @@ function registerTerminalCommands(kernel) {
                     var timeAgo = "";
                     if (diffDays > 0) {
                         timeAgo = diffDays + " day" + (diffDays !== 1 ? "s" : "") +
-                        " and " + diffHours + " hour" + (diffHours !== 1 ? "s" : "");
+                            " and " + diffHours + " hour" + (diffHours !== 1 ? "s" : "");
                     } else if (diffHours > 0) {
                         var diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
                         timeAgo = diffHours + " hour" + (diffHours !== 1 ? "s" : "") +
-                        " and " + diffMinutes + " minute" + (diffMinutes !== 1 ? "s" : "");
+                            " and " + diffMinutes + " minute" + (diffMinutes !== 1 ? "s" : "");
                     } else {
                         var diffMinutes = Math.floor(diffMs / (1000 * 60));
                         timeAgo = diffMinutes + " minute" + (diffMinutes !== 1 ? "s" : "");
@@ -3211,11 +3354,11 @@ function registerTerminalCommands(kernel) {
 
                     if (diffDays > 0) {
                         stdout.push("  Time ago: " + diffDays + " day" + (diffDays !== 1 ? "s" : "") +
-                        " and " + diffHours + " hour" + (diffHours !== 1 ? "s" : ""));
+                            " and " + diffHours + " hour" + (diffHours !== 1 ? "s" : ""));
                     } else if (diffHours > 0) {
                         var diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
                         stdout.push("  Time ago: " + diffHours + " hour" + (diffHours !== 1 ? "s" : "") +
-                        " and " + diffMinutes + " minute" + (diffMinutes !== 1 ? "s" : ""));
+                            " and " + diffMinutes + " minute" + (diffMinutes !== 1 ? "s" : ""));
                     } else {
                         var diffMinutes = Math.floor(diffMs / (1000 * 60));
                         stdout.push("  Time ago: " + diffMinutes + " minute" + (diffMinutes !== 1 ? "s" : ""));
@@ -3333,10 +3476,10 @@ function registerTerminalCommands(kernel) {
                 "Collections: " + totalCollections,
                 "Favorites: " + favoriteCount,
                 "Played: " + playedCount + " (" + Math.round((playedCount / totalGames) * 100) + "%)",
-                             "Play Time: " + playHours + "h " + playMinutes + "m",
-                             "",
-                             "Battery: " + batteryInfo,
-                             "Current Dir: " + (kernel.getUserPath ? kernel.getUserPath(kernel.cwd) : kernel.cwd)
+                "Play Time: " + playHours + "h " + playMinutes + "m",
+                "",
+                "Battery: " + batteryInfo,
+                "Current Dir: " + (kernel.getUserPath ? kernel.getUserPath(kernel.cwd) : kernel.cwd)
             ];
 
             var colorBar = "███ ███ ███ ███ ███ ███ ███ ███";
@@ -3345,24 +3488,24 @@ function registerTerminalCommands(kernel) {
                 var maxLines = Math.max(asciiArt.length, infoLines.length);
                 var artWidth = 58;
 
-    for (var i = 0; i < maxLines; i++) {
-        var line = "";
+                for (var i = 0; i < maxLines; i++) {
+                    var line = "";
 
-        if (i < asciiArt.length) {
-            line += asciiArt[i];
-        } else {
-            line += padRight("", artWidth);
-        }
+                    if (i < asciiArt.length) {
+                        line += asciiArt[i];
+                    } else {
+                        line += padRight("", artWidth);
+                    }
 
-        if (i < infoLines.length) {
-            line += "   " + infoLines[i];
-        }
+                    if (i < infoLines.length) {
+                        line += "   " + infoLines[i];
+                    }
 
-        stdout.push(line);
-    }
+                    stdout.push(line);
+                }
 
-    stdout.push("");
-    stdout.push(padRight("", artWidth - 5) + colorBar);
+                stdout.push("");
+                stdout.push(padRight("", artWidth - 5) + colorBar);
             } else {
                 stdout = infoLines;
                 stdout.push("");
@@ -3412,9 +3555,9 @@ function registerTerminalCommands(kernel) {
                     searchText = game.releaseYear ? game.releaseYear.toString() : "";
                 } else if (field === "all") {
                     searchText = (game.title || "") + " " +
-                    (game.developer || "") + " " +
-                    (game.genre || "") + " " +
-                    (game.releaseYear || "");
+                        (game.developer || "") + " " +
+                        (game.genre || "") + " " +
+                        (game.releaseYear || "");
                 }
 
                 if (searchText.toLowerCase().indexOf(term) !== -1) {
@@ -3454,7 +3597,7 @@ function registerTerminalCommands(kernel) {
             }
 
             if (precise) {
-                results.sort(function(a, b) {
+                results.sort(function (a, b) {
                     return b.score - a.score;
                 });
             }
@@ -3463,7 +3606,7 @@ function registerTerminalCommands(kernel) {
                 stdout.push("Search results for: '" + term + "' (sorted by relevance)");
             } else if (limit) {
                 stdout.push("Search results for: '" + term + "' (showing " +
-                Math.min(limit, results.length) + " of " + results.length + ")");
+                    Math.min(limit, results.length) + " of " + results.length + ")");
             } else {
                 stdout.push("Search results for: '" + term + "'");
             }
@@ -3493,12 +3636,12 @@ function registerTerminalCommands(kernel) {
 
                 stdout.push("");
                 stdout.push("Total: " + results.length + " game" +
-                (results.length !== 1 ? "s" : "") + " found");
+                    (results.length !== 1 ? "s" : "") + " found");
 
                 if (limit && results.length > limit) {
                     stdout.push("");
                     stdout.push("Use 'search " + args[0] + "' to see all " +
-                    results.length + " results");
+                        results.length + " results");
                 }
             }
 
@@ -3603,52 +3746,52 @@ function registerTerminalCommands(kernel) {
             var stderr = [];
 
             var availableSchemes = [
-                { name: "default",       displayName: "Default Terminal", description: "Classic terminal colors" },
-                { name: "matrix",        displayName: "Matrix Green",     description: "Green on black Matrix style" },
-                { name: "cyberpunk",     displayName: "Cyberpunk Neon",   description: "Cyan and magenta neon colors" },
-                { name: "dracula",       displayName: "Dracula Dark",     description: "Popular Dracula theme palette" },
-                { name: "monokai",       displayName: "Monokai Pro",      description: "Classic Monokai editor theme" },
-                { name: "amber",         displayName: "Amber Retro",      description: "Vintage amber monochrome terminal" },
-                { name: "gruvbox",       displayName: "Gruvbox Dark",     description: "Retro groove color scheme" },
-                { name: "nord",          displayName: "Nord Polar",       description: "Arctic inspired palette" },
-                { name: "material-dark", displayName: "Material Dark",    description: "Google Material Design dark theme" },
-                { name: "solarized-dark",displayName: "Solarized Dark",   description: "Classic developer color scheme" },
-                { name: "one-dark",      displayName: "One Dark",         description: "Popular Atom/VS Code theme" },
-                { name: "tokyo-night",   displayName: "Tokyo Night",      description: "Modern Japanese neon aesthetic" },
-                { name: "synthwave-84",  displayName: "Synthwave '84",    description: "Retrowave/Outrun 80s style" },
-                { name: "rose-pine",     displayName: "Rose Pine",        description: "Elegant minimalist theme" }
+                { name: "default", displayName: "Default Terminal", description: "Classic terminal colors" },
+                { name: "matrix", displayName: "Matrix Green", description: "Green on black Matrix style" },
+                { name: "cyberpunk", displayName: "Cyberpunk Neon", description: "Cyan and magenta neon colors" },
+                { name: "dracula", displayName: "Dracula Dark", description: "Popular Dracula theme palette" },
+                { name: "monokai", displayName: "Monokai Pro", description: "Classic Monokai editor theme" },
+                { name: "amber", displayName: "Amber Retro", description: "Vintage amber monochrome terminal" },
+                { name: "gruvbox", displayName: "Gruvbox Dark", description: "Retro groove color scheme" },
+                { name: "nord", displayName: "Nord Polar", description: "Arctic inspired palette" },
+                { name: "material-dark", displayName: "Material Dark", description: "Google Material Design dark theme" },
+                { name: "solarized-dark", displayName: "Solarized Dark", description: "Classic developer color scheme" },
+                { name: "one-dark", displayName: "One Dark", description: "Popular Atom/VS Code theme" },
+                { name: "tokyo-night", displayName: "Tokyo Night", description: "Modern Japanese neon aesthetic" },
+                { name: "synthwave-84", displayName: "Synthwave '84", description: "Retrowave/Outrun 80s style" },
+                { name: "rose-pine", displayName: "Rose Pine", description: "Elegant minimalist theme" }
             ];
 
             var availablePromptStyles = [
-                { name: "default",   displayName: "Default",   description: "Standard user@host:path$ format" },
-                { name: "minimal",   displayName: "Minimal",   description: "Clean > prompt" },
+                { name: "default", displayName: "Default", description: "Standard user@host:path$ format" },
+                { name: "minimal", displayName: "Minimal", description: "Clean > prompt" },
                 { name: "powerline", displayName: "Powerline", description: "Styled with powerline separators" },
-                { name: "arrow",     displayName: "Arrow",     description: "Simple arrow prompt →" },
-                { name: "retro",     displayName: "Retro",     description: "C:\\> style DOS prompt" },
-                { name: "fish",      displayName: "Fish",      description: "Fish shell style prompt" },
-                { name: "zsh",       displayName: "Zsh",       description: "Oh-my-zsh style with git info" },
-                { name: "hacker",    displayName: "Hacker",    description: "Matrix-style hacker prompt" },
-                { name: "root",      displayName: "Root",      description: "Superuser/admin style prompt" },
-                { name: "unix",      displayName: "Unix",      description: "Classic Unix/BSD style prompt" },
-                { name: "session",   displayName: "Session",   description: "Interactive console with session info" },
-                { name: "clock",     displayName: "Clock",     description: "Shows current time in prompt" },
-                { name: "date",      displayName: "Date",      description: "Shows current date in prompt" },
+                { name: "arrow", displayName: "Arrow", description: "Simple arrow prompt →" },
+                { name: "retro", displayName: "Retro", description: "C:\\> style DOS prompt" },
+                { name: "fish", displayName: "Fish", description: "Fish shell style prompt" },
+                { name: "zsh", displayName: "Zsh", description: "Oh-my-zsh style with git info" },
+                { name: "hacker", displayName: "Hacker", description: "Matrix-style hacker prompt" },
+                { name: "root", displayName: "Root", description: "Superuser/admin style prompt" },
+                { name: "unix", displayName: "Unix", description: "Classic Unix/BSD style prompt" },
+                { name: "session", displayName: "Session", description: "Interactive console with session info" },
+                { name: "clock", displayName: "Clock", description: "Shows current time in prompt" },
+                { name: "date", displayName: "Date", description: "Shows current date in prompt" },
                 { name: "geometric", displayName: "Geometric", description: "Styled with ◢◤◥◣ geometric symbols" }
             ];
 
             var availableFonts = [
-                { name: "default",      displayName: "Default Mono",   description: "System default monospace font" },
-                { name: "dotgothic16",  displayName: "Dot Gothic 16",  description: "Pixel-style gothic font" },
-                { name: "firacode",     displayName: "Fira Code",      description: "Developer font with ligatures" },
+                { name: "default", displayName: "Default Mono", description: "System default monospace font" },
+                { name: "dotgothic16", displayName: "Dot Gothic 16", description: "Pixel-style gothic font" },
+                { name: "firacode", displayName: "Fira Code", description: "Developer font with ligatures" },
                 { name: "pressstart2p", displayName: "Press Start 2P", description: "Classic 8-bit arcade font" },
-                { name: "spacemono",    displayName: "Space Mono",     description: "Fixed-width typewriter style" },
-                { name: "specialelite", displayName: "Special Elite",  description: "Vintage typewriter aesthetic" },
-                { name: "synemono",     displayName: "Syne Mono",      description: "Modern geometric monospace" },
-                { name: "vt323",        displayName: "VT323",          description: "Classic CRT terminal font" },
-                { name: "terminus",     displayName: "Terminus",       description: "Clean bitmap font for terminals" },
-                { name: "ubuntumono",   displayName: "Ubuntu Mono",    description: "Ubuntu's monospace companion font" },
-                { name: "cascadiacode", displayName: "Cascadia Code",  description: "Microsoft's coding font with ligatures" },
-                { name: "ibmplexmono",  displayName: "IBM Plex Mono",  description: "IBM's modern monospace typeface" }
+                { name: "spacemono", displayName: "Space Mono", description: "Fixed-width typewriter style" },
+                { name: "specialelite", displayName: "Special Elite", description: "Vintage typewriter aesthetic" },
+                { name: "synemono", displayName: "Syne Mono", description: "Modern geometric monospace" },
+                { name: "vt323", displayName: "VT323", description: "Classic CRT terminal font" },
+                { name: "terminus", displayName: "Terminus", description: "Clean bitmap font for terminals" },
+                { name: "ubuntumono", displayName: "Ubuntu Mono", description: "Ubuntu's monospace companion font" },
+                { name: "cascadiacode", displayName: "Cascadia Code", description: "Microsoft's coding font with ligatures" },
+                { name: "ibmplexmono", displayName: "IBM Plex Mono", description: "IBM's modern monospace typeface" }
             ];
 
             if (args.length === 0) {
@@ -3783,12 +3926,12 @@ function registerTerminalCommands(kernel) {
                         var examplePrompt = "";
 
                         switch (currentPrompt) {
-                            case "default":    examplePrompt = kernel.currentUser + "@pegasus:" + examplePath + "$ "; break;
-                            case "minimal":    examplePrompt = "[Documents] > "; break;
-                            case "arrow":      examplePrompt = "→ "; break;
-                            case "retro":      examplePrompt = "C:\\Users\\" + kernel.currentUser + "\\Documents>"; break;
-                            case "hacker":     examplePrompt = "root@" + kernel.currentUser + ":/11010101# "; break;
-                            default:           examplePrompt = kernel.currentUser + "@pegasus:" + examplePath + "$ ";
+                            case "default": examplePrompt = kernel.currentUser + "@pegasus:" + examplePath + "$ "; break;
+                            case "minimal": examplePrompt = "[Documents] > "; break;
+                            case "arrow": examplePrompt = "→ "; break;
+                            case "retro": examplePrompt = "C:\\Users\\" + kernel.currentUser + "\\Documents>"; break;
+                            case "hacker": examplePrompt = "root@" + kernel.currentUser + ":/11010101# "; break;
+                            default: examplePrompt = kernel.currentUser + "@pegasus:" + examplePath + "$ ";
                         }
 
                         stdout.push("Example: " + examplePrompt);
@@ -4313,7 +4456,7 @@ function registerTerminalCommands(kernel) {
 
     CommandRegistry.register(kernel, "journal", {
         help: "Manage personal notes (journal) for your games.",
-                             usage: `journal <@collection:identifier> [options]
+        usage: `journal <@collection:identifier> [options]
                              Identifier can be an index (e.g., @snes:12) or the game title in quotes (e.g., @snes:"Super Mario Bros 3").
                              journal list                                 - List all saved notes.
                              journal show <id>                            - Show a note by its numeric ID.
@@ -4321,494 +4464,511 @@ function registerTerminalCommands(kernel) {
                              journal edit <id> [--title="new title"] [--comment="new comment"] - Edit a note.
                              journal rm <id>                               - Delete a specific note.
                              journal clear                                 - Delete ALL notes (with confirmation).`,
-                             minArgs: 0,
-                             maxArgs: 4,
-                             aliases: ["notes", "note"],
-                             requiredState: kernel.states.SHELL,
-                             requiredAuth: true,
-                             execute: function (args, flags) {
-                                 var stdout = [];
-                                 var stderr = [];
+        minArgs: 0,
+        maxArgs: 4,
+        aliases: ["notes", "note"],
+        requiredState: kernel.states.SHELL,
+        requiredAuth: true,
+        execute: function (args, flags) {
+            var stdout = [];
+            var stderr = [];
 
-                                 var allNotes = api.memory.get("terminal_journal_notes") || {};
+            var allNotes = api.memory.get("terminal_journal_notes") || {};
 
-                                 function saveNotes() {
-                                     api.memory.set("terminal_journal_notes", allNotes);
-                                 }
+            function saveNotes() {
+                api.memory.set("terminal_journal_notes", allNotes);
+            }
 
-                                 function getNextId() {
-                                     var maxId = 0;
-                                     for (var key in allNotes) {
-                                         if (allNotes.hasOwnProperty(key)) {
-                                             var noteId = parseInt(allNotes[key].id);
-                                             if (noteId > maxId) maxId = noteId;
-                                         }
-                                     }
-                                     return maxId + 1;
-                                 }
+            function getNextId() {
+                var maxId = 0;
+                for (var key in allNotes) {
+                    if (allNotes.hasOwnProperty(key)) {
+                        var noteId = parseInt(allNotes[key].id);
+                        if (noteId > maxId) maxId = noteId;
+                    }
+                }
+                return maxId + 1;
+            }
 
-                                 function findGameFromIdentifier(identifier) {
-                                     if (!identifier || identifier.indexOf("@") !== 0) {
-                                         return { error: "Invalid format. Must start with @ (e.g., @snes:12)" };
-                                     }
+            function findGameFromIdentifier(identifier) {
+                if (!identifier || identifier.indexOf("@") !== 0) {
+                    return { error: "Invalid format. Must start with @ (e.g., @snes:12)" };
+                }
 
-                                     var colonIndex = identifier.indexOf(":");
-                                     if (colonIndex === -1) {
-                                         return { error: "Invalid format. Must be @collection:identifier" };
-                                     }
+                var colonIndex = identifier.indexOf(":");
+                if (colonIndex === -1) {
+                    return { error: "Invalid format. Must be @collection:identifier" };
+                }
 
-                                     var collectionPart = identifier.substring(1, colonIndex).toLowerCase();
-                                     var gamePart = identifier.substring(colonIndex + 1).trim();
+                var collectionPart = identifier.substring(1, colonIndex).toLowerCase();
+                var gamePart = identifier.substring(colonIndex + 1).trim();
 
-                                     var isTitle = false;
-                                     if (gamePart.startsWith('"') && gamePart.endsWith('"')) {
-                                         isTitle = true;
-                                         gamePart = gamePart.substring(1, gamePart.length - 1);
-                                     }
+                var isTitle = false;
+                if (gamePart.startsWith('"') && gamePart.endsWith('"')) {
+                    isTitle = true;
+                    gamePart = gamePart.substring(1, gamePart.length - 1);
+                }
 
-                                     var game = null;
-                                     var gameIndex = -1;
-                                     var indexInCollection = -1;
-                                     var globalIndex = -1;
+                var game = null;
+                var gameIndex = -1;
+                var indexInCollection = -1;
+                var globalIndex = -1;
 
-                                     if (!isTitle) {
-                                         gameIndex = parseInt(gamePart);
-                                         if (isNaN(gameIndex) || gameIndex < 0) {
-                                             return { error: "Game index must be a valid number: " + gamePart };
-                                         }
-                                     }
+                if (!isTitle) {
+                    gameIndex = parseInt(gamePart);
+                    if (isNaN(gameIndex) || gameIndex < 0) {
+                        return { error: "Game index must be a valid number: " + gamePart };
+                    }
+                }
 
-                                     var virtualCollections = {
-                                         "all": "All-Games",
-                                         "all-games": "All-Games",
-                                         "allgames": "All-Games",
-                                         "favorites": "Favorites",
-                                         "fav": "Favorites",
-                                         "mostplayed": "MostPlayed",
-                                         "most": "MostPlayed",
-                                         "lastplayed": "LastPlayed",
-                                         "last": "LastPlayed",
-                                         "recent": "LastPlayed"
-                                     };
+                var virtualCollections = {
+                    "all": "All-Games",
+                    "all-games": "All-Games",
+                    "allgames": "All-Games",
+                    "favorites": "Favorites",
+                    "fav": "Favorites",
+                    "mostplayed": "MostPlayed",
+                    "most": "MostPlayed",
+                    "lastplayed": "LastPlayed",
+                    "last": "LastPlayed",
+                    "recent": "LastPlayed"
+                };
 
-                                     var targetCollection = null;
+                var targetCollection = null;
 
-                                     if (virtualCollections[collectionPart]) {
-                                         var gamesArray = [];
-                                         if (collectionPart === "all" || collectionPart === "all-games" || collectionPart === "allgames") {
-                                             for (var i = 0; i < api.allGames.count; i++) gamesArray.push(api.allGames.get(i));
-                                         } else if (collectionPart === "favorites" || collectionPart === "fav") {
-                                             for (var i = 0; i < api.allGames.count; i++) {
-                                                 var g = api.allGames.get(i);
-                                                 if (g.favorite) gamesArray.push(g);
-                                             }
-                                         } else if (collectionPart === "mostplayed" || collectionPart === "most") {
-                                             for (var i = 0; i < api.allGames.count; i++) {
-                                                 var g = api.allGames.get(i);
-                                                 if (g.playTime && g.playTime > 0) gamesArray.push(g);
-                                             }
-                                             gamesArray.sort(function(a, b) { return (b.playTime || 0) - (a.playTime || 0); });
-                                         } else if (collectionPart === "lastplayed" || collectionPart === "last" || collectionPart === "recent") {
-                                             for (var i = 0; i < api.allGames.count; i++) {
-                                                 var g = api.allGames.get(i);
-                                                 if (g.lastPlayed && g.lastPlayed > 0) gamesArray.push(g);
-                                             }
-                                             gamesArray.sort(function(a, b) { return (b.lastPlayed || 0) - (a.lastPlayed || 0); });
-                                         }
+                if (virtualCollections[collectionPart]) {
+                    var gamesArray = [];
+                    if (collectionPart === "all" || collectionPart === "all-games" || collectionPart === "allgames") {
+                        for (var i = 0; i < api.allGames.count; i++) gamesArray.push(api.allGames.get(i));
+                    } else if (collectionPart === "favorites" || collectionPart === "fav") {
+                        for (var i = 0; i < api.allGames.count; i++) {
+                            var g = api.allGames.get(i);
+                            if (g.favorite) gamesArray.push(g);
+                        }
+                    } else if (collectionPart === "mostplayed" || collectionPart === "most") {
+                        for (var i = 0; i < api.allGames.count; i++) {
+                            var g = api.allGames.get(i);
+                            if (g.playTime && g.playTime > 0) gamesArray.push(g);
+                        }
+                        gamesArray.sort(function (a, b) { return (b.playTime || 0) - (a.playTime || 0); });
+                    } else if (collectionPart === "lastplayed" || collectionPart === "last" || collectionPart === "recent") {
+                        for (var i = 0; i < api.allGames.count; i++) {
+                            var g = api.allGames.get(i);
+                            if (g.lastPlayed && g.lastPlayed > 0) gamesArray.push(g);
+                        }
+                        gamesArray.sort(function (a, b) { return (b.lastPlayed || 0) - (a.lastPlayed || 0); });
+                    }
 
-                                         if (!isTitle && gameIndex >= 0 && gameIndex < gamesArray.length) {
-                                             game = gamesArray[gameIndex];
-                                             indexInCollection = gameIndex;
-                                         } else if (isTitle) {
-                                             for (var i = 0; i < gamesArray.length; i++) {
-                                                 if (gamesArray[i].title.toLowerCase() === gamePart.toLowerCase()) {
-                                                     game = gamesArray[i];
-                                                     indexInCollection = i;
-                                                     break;
-                                                 }
-                                             }
-                                         }
-                                     } else {
-                                         for (var i = 0; i < api.collections.count; i++) {
-                                             var coll = api.collections.get(i);
-                                             if (coll.shortName.toLowerCase() === collectionPart || coll.name.toLowerCase() === collectionPart) {
-                                                 targetCollection = coll;
-                                                 break;
-                                             }
-                                         }
+                    if (!isTitle && gameIndex >= 0 && gameIndex < gamesArray.length) {
+                        game = gamesArray[gameIndex];
+                        indexInCollection = gameIndex;
+                    } else if (isTitle) {
+                        for (var i = 0; i < gamesArray.length; i++) {
+                            if (gamesArray[i].title.toLowerCase() === gamePart.toLowerCase()) {
+                                game = gamesArray[i];
+                                indexInCollection = i;
+                                break;
+                            }
+                        }
+                    }
+                } else {
+                    var dynamicResult = kernel.resolveDynamicCollectionName(collectionPart);
+                    if (dynamicResult) {
+                        var dynamicGames = kernel.getGamesFromDynamicPath(dynamicResult.path);
+                        if (!isTitle && gameIndex >= 0 && gameIndex < dynamicGames.length) {
+                            game = dynamicGames[gameIndex];
+                            indexInCollection = gameIndex;
+                        } else if (isTitle) {
+                            for (var i = 0; i < dynamicGames.length; i++) {
+                                if (dynamicGames[i].title.toLowerCase() === gamePart.toLowerCase()) {
+                                    game = dynamicGames[i];
+                                    indexInCollection = i;
+                                    break;
+                                }
+                            }
+                        }
+                    } else {
+                        for (var i = 0; i < api.collections.count; i++) {
+                            var coll = api.collections.get(i);
+                            if (coll.shortName.toLowerCase() === collectionPart || coll.name.toLowerCase() === collectionPart) {
+                                targetCollection = coll;
+                                break;
+                            }
+                        }
 
-                                         if (targetCollection && targetCollection.games) {
-                                             if (!isTitle && gameIndex >= 0 && gameIndex < targetCollection.games.count) {
-                                                 game = targetCollection.games.get(gameIndex);
-                                                 indexInCollection = gameIndex;
-                                             } else if (isTitle) {
-                                                 for (var i = 0; i < targetCollection.games.count; i++) {
-                                                     var g = targetCollection.games.get(i);
-                                                     if (g.title.toLowerCase() === gamePart.toLowerCase()) {
-                                                         game = g;
-                                                         indexInCollection = i;
-                                                         break;
-                                                     }
-                                                 }
-                                             }
-                                         }
-                                     }
+                        if (targetCollection && targetCollection.games) {
+                            if (!isTitle && gameIndex >= 0 && gameIndex < targetCollection.games.count) {
+                                game = targetCollection.games.get(gameIndex);
+                                indexInCollection = gameIndex;
+                            } else if (isTitle) {
+                                for (var i = 0; i < targetCollection.games.count; i++) {
+                                    var g = targetCollection.games.get(i);
+                                    if (g.title.toLowerCase() === gamePart.toLowerCase()) {
+                                        game = g;
+                                        indexInCollection = i;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
 
-                                     if (!game) {
-                                         if (isTitle) {
-                                             return { error: "Game not found in collection '" + collectionPart + "' with title: " + gamePart };
-                                         } else {
-                                             return { error: "Game not found in collection '" + collectionPart + "' with index: " + gameIndex };
-                                         }
-                                     }
+                if (!game) {
+                    if (isTitle) {
+                        return { error: "Game not found in collection '" + collectionPart + "' with title: " + gamePart };
+                    } else {
+                        return { error: "Game not found in collection '" + collectionPart + "' with index: " + gameIndex };
+                    }
+                }
 
-                                     for (var idx = 0; idx < api.allGames.count; idx++) {
-                                         if (api.allGames.get(idx).title === game.title) {
-                                             globalIndex = idx;
-                                             break;
-                                         }
-                                     }
+                for (var idx = 0; idx < api.allGames.count; idx++) {
+                    if (api.allGames.get(idx).title === game.title) {
+                        globalIndex = idx;
+                        break;
+                    }
+                }
 
-                                     return {
-                                         game: game,
-                                         collectionShortName: collectionPart,
-                                         indexInCollection: indexInCollection,
-                                         globalIndex: globalIndex
-                                     };
-                                 }
+                return {
+                    game: game,
+                    collectionShortName: collectionPart,
+                    indexInCollection: indexInCollection,
+                    globalIndex: globalIndex
+                };
+            }
 
-                                 if (args.length === 0) {
-                                     stdout.push("JOURNAL - Game Notes System");
-                                     stdout.push(repeatString("=", 60));
-                                     stdout.push("Usage: journal <@collection:identifier> [options]");
-                                     stdout.push("  Options:");
-                                     stdout.push("    --title=\"My Title\"      Title of the note (default: 'Note about [Game]')");
-                                     stdout.push("    --comment=\"My comment\"  The note text.");
-                                     stdout.push("");
-                                     stdout.push("  Examples:");
-                                     stdout.push("    journal @snes:12 --title=\"Zelda\" --comment=\"I found the Master Sword.\"");
-                                     stdout.push("    journal @snes:\"Super Mario Bros 3\" --comment=\"World 8 is tricky.\"");
-                                     stdout.push("");
-                                     stdout.push("  Other commands:");
-                                     stdout.push("    journal list                    - List all notes");
-                                     stdout.push("    journal show <id>               - Show a note by ID");
-                                     stdout.push("    journal show \"game title\"      - Show a note by game title");
-                                     stdout.push("    journal edit <id> [options]     - Edit a note");
-                                     stdout.push("    journal rm <id>                 - Delete a note");
-                                     stdout.push("    journal clear                   - Delete ALL notes");
-                                     return { stdout: stdout, stderr: [], exitCode: 0, sideEffects: {} };
-                                 }
+            if (args.length === 0) {
+                stdout.push("JOURNAL - Game Notes System");
+                stdout.push(repeatString("=", 60));
+                stdout.push("Usage: journal <@collection:identifier> [options]");
+                stdout.push("  Options:");
+                stdout.push("    --title=\"My Title\"      Title of the note (default: 'Note about [Game]')");
+                stdout.push("    --comment=\"My comment\"  The note text.");
+                stdout.push("");
+                stdout.push("  Examples:");
+                stdout.push("    journal @snes:12 --title=\"Zelda\" --comment=\"I found the Master Sword.\"");
+                stdout.push("    journal @snes:\"Super Mario Bros 3\" --comment=\"World 8 is tricky.\"");
+                stdout.push("");
+                stdout.push("  Other commands:");
+                stdout.push("    journal list                    - List all notes");
+                stdout.push("    journal show <id>               - Show a note by ID");
+                stdout.push("    journal show \"game title\"      - Show a note by game title");
+                stdout.push("    journal edit <id> [options]     - Edit a note");
+                stdout.push("    journal rm <id>                 - Delete a note");
+                stdout.push("    journal clear                   - Delete ALL notes");
+                return { stdout: stdout, stderr: [], exitCode: 0, sideEffects: {} };
+            }
 
-                                 var subcommand = args[0].toLowerCase();
+            var subcommand = args[0].toLowerCase();
 
-                                 if (subcommand === "list") {
-                                     var notesList = [];
-                                     for (var key in allNotes) {
-                                         if (allNotes.hasOwnProperty(key)) {
-                                             notesList.push(allNotes[key]);
-                                         }
-                                     }
+            if (subcommand === "list") {
+                var notesList = [];
+                for (var key in allNotes) {
+                    if (allNotes.hasOwnProperty(key)) {
+                        notesList.push(allNotes[key]);
+                    }
+                }
 
-                                     notesList.sort(function(a, b) { return b.id - a.id; });
+                notesList.sort(function (a, b) { return b.id - a.id; });
 
-                                     if (notesList.length === 0) {
-                                         stdout.push("No notes saved.");
-                                     } else {
-                                         stdout.push("YOUR NOTES (" + notesList.length + ")");
-                                         stdout.push(repeatString("=", 70));
-                                         for (var i = 0; i < notesList.length; i++) {
-                                             var note = notesList[i];
-                                             var date = new Date(note.timestamp);
-                                             stdout.push("[" + note.id + "] " + note.gameTitle + " (" + note.collection + ")");
-                                             stdout.push("    Title: " + (note.noteTitle || "Untitled"));
-                                             stdout.push("    Date:  " + date.toLocaleDateString() + " " + date.toLocaleTimeString());
-                                             if (note.comment) {
-                                                 var shortComment = note.comment;
-                                                 if (note.comment.length > 50) {
-                                                     var wrappedPreview = wrapText(note.comment, 50);
-                                                     shortComment = wrappedPreview[0] + (wrappedPreview.length > 1 ? "..." : "");
-                                                 }
-                                                 stdout.push("    Note:  " + shortComment);
-                                             }
-                                             stdout.push(repeatString("-", 70));
-                                         }
-                                     }
-                                     return { stdout: stdout, stderr: [], exitCode: 0, sideEffects: {} };
-                                 }
+                if (notesList.length === 0) {
+                    stdout.push("No notes saved.");
+                } else {
+                    stdout.push("YOUR NOTES (" + notesList.length + ")");
+                    stdout.push(repeatString("=", 70));
+                    for (var i = 0; i < notesList.length; i++) {
+                        var note = notesList[i];
+                        var date = new Date(note.timestamp);
+                        stdout.push("[" + note.id + "] " + note.gameTitle + " (" + note.collection + ")");
+                        stdout.push("    Title: " + (note.noteTitle || "Untitled"));
+                        stdout.push("    Date:  " + date.toLocaleDateString() + " " + date.toLocaleTimeString());
+                        if (note.comment) {
+                            var shortComment = note.comment;
+                            if (note.comment.length > 50) {
+                                var wrappedPreview = wrapText(note.comment, 50);
+                                shortComment = wrappedPreview[0] + (wrappedPreview.length > 1 ? "..." : "");
+                            }
+                            stdout.push("    Note:  " + shortComment);
+                        }
+                        stdout.push(repeatString("-", 70));
+                    }
+                }
+                return { stdout: stdout, stderr: [], exitCode: 0, sideEffects: {} };
+            }
 
-                                 if (subcommand === "show") {
-                                     if (args.length < 2) {
-                                         stderr.push("Usage: journal show <id> or journal show \"game title\"");
-                                         return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
-                                     }
+            if (subcommand === "show") {
+                if (args.length < 2) {
+                    stderr.push("Usage: journal show <id> or journal show \"game title\"");
+                    return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                }
 
-                                     var searchTerm = args[1];
-                                     var foundNotes = [];
+                var searchTerm = args[1];
+                var foundNotes = [];
 
-                                     var searchId = parseInt(searchTerm);
-                                     if (!isNaN(searchId)) {
-                                         for (var key in allNotes) {
-                                             if (allNotes[key].id === searchId) {
-                                                 foundNotes.push(allNotes[key]);
-                                                 break;
-                                             }
-                                         }
-                                     } else {
-                                         var searchTitle = searchTerm.toLowerCase();
-                                         if (searchTitle.startsWith('"') && searchTitle.endsWith('"')) {
-                                             searchTitle = searchTitle.substring(1, searchTitle.length - 1);
-                                         }
-                                         for (var key in allNotes) {
-                                             if (allNotes[key].gameTitle.toLowerCase().indexOf(searchTitle) !== -1) {
-                                                 foundNotes.push(allNotes[key]);
-                                             }
-                                         }
-                                     }
+                var searchId = parseInt(searchTerm);
+                if (!isNaN(searchId)) {
+                    for (var key in allNotes) {
+                        if (allNotes[key].id === searchId) {
+                            foundNotes.push(allNotes[key]);
+                            break;
+                        }
+                    }
+                } else {
+                    var searchTitle = searchTerm.toLowerCase();
+                    if (searchTitle.startsWith('"') && searchTitle.endsWith('"')) {
+                        searchTitle = searchTitle.substring(1, searchTitle.length - 1);
+                    }
+                    for (var key in allNotes) {
+                        if (allNotes[key].gameTitle.toLowerCase().indexOf(searchTitle) !== -1) {
+                            foundNotes.push(allNotes[key]);
+                        }
+                    }
+                }
 
-                                     if (foundNotes.length === 0) {
-                                         stderr.push("No notes found for: " + searchTerm);
-                                         return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
-                                     }
+                if (foundNotes.length === 0) {
+                    stderr.push("No notes found for: " + searchTerm);
+                    return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                }
 
-                                     for (var n = 0; n < foundNotes.length; n++) {
-                                         var note = foundNotes[n];
-                                         var date = new Date(note.timestamp);
-                                         stdout.push("NOTE [" + note.id + "]");
-                                         stdout.push(repeatString("=", 60));
-                                         stdout.push("Game:     " + note.gameTitle);
-                                         stdout.push("Collection: " + note.collection);
-                                         stdout.push("Title:    " + (note.noteTitle || "Untitled"));
-                                         stdout.push("Date:     " + date.toLocaleDateString() + " " + date.toLocaleTimeString());
-                                         stdout.push("Comment:");
+                for (var n = 0; n < foundNotes.length; n++) {
+                    var note = foundNotes[n];
+                    var date = new Date(note.timestamp);
+                    stdout.push("NOTE [" + note.id + "]");
+                    stdout.push(repeatString("=", 60));
+                    stdout.push("Game:     " + note.gameTitle);
+                    stdout.push("Collection: " + note.collection);
+                    stdout.push("Title:    " + (note.noteTitle || "Untitled"));
+                    stdout.push("Date:     " + date.toLocaleDateString() + " " + date.toLocaleTimeString());
+                    stdout.push("Comment:");
 
-                                         var wrappedLines = wrapText(note.comment || "(empty)", 70);
-                                         for (var w = 0; w < wrappedLines.length; w++) {
-                                             stdout.push("  " + wrappedLines[w]);
-                                         }
+                    var wrappedLines = wrapText(note.comment || "(empty)", 70);
+                    for (var w = 0; w < wrappedLines.length; w++) {
+                        stdout.push("  " + wrappedLines[w]);
+                    }
 
-                                         var globalIndex = -1;
-                                         for (var i = 0; i < api.allGames.count; i++) {
-                                             if (api.allGames.get(i).title === note.gameTitle) {
-                                                 globalIndex = i;
-                                                 break;
-                                             }
-                                         }
+                    var globalIndex = -1;
+                    for (var i = 0; i < api.allGames.count; i++) {
+                        if (api.allGames.get(i).title === note.gameTitle) {
+                            globalIndex = i;
+                            break;
+                        }
+                    }
 
-                                         var collectionIndex = -1;
-                                         var collectionPart = note.collection.toLowerCase();
-                                         var virtualCollections = {
-                                             "all": "All-Games",
-                                             "all-games": "All-Games",
-                                             "allgames": "All-Games",
-                                             "favorites": "Favorites",
-                                             "fav": "Favorites",
-                                             "mostplayed": "MostPlayed",
-                                             "most": "MostPlayed",
-                                             "lastplayed": "LastPlayed",
-                                             "last": "LastPlayed",
-                                             "recent": "LastPlayed"
-                                         };
+                    var collectionIndex = -1;
+                    var collectionPart = note.collection.toLowerCase();
+                    var virtualCollections = {
+                        "all": "All-Games",
+                        "all-games": "All-Games",
+                        "allgames": "All-Games",
+                        "favorites": "Favorites",
+                        "fav": "Favorites",
+                        "mostplayed": "MostPlayed",
+                        "most": "MostPlayed",
+                        "lastplayed": "LastPlayed",
+                        "last": "LastPlayed",
+                        "recent": "LastPlayed"
+                    };
 
-                                         if (virtualCollections[collectionPart]) {
-                                             var gamesArray = [];
-                                             if (collectionPart === "all" || collectionPart === "all-games" || collectionPart === "allgames") {
-                                                 for (var i = 0; i < api.allGames.count; i++) gamesArray.push(api.allGames.get(i));
-                                             } else if (collectionPart === "favorites" || collectionPart === "fav") {
-                                                 for (var i = 0; i < api.allGames.count; i++) {
-                                                     var g = api.allGames.get(i);
-                                                     if (g.favorite) gamesArray.push(g);
-                                                 }
-                                             } else if (collectionPart === "mostplayed" || collectionPart === "most") {
-                                                 for (var i = 0; i < api.allGames.count; i++) {
-                                                     var g = api.allGames.get(i);
-                                                     if (g.playTime && g.playTime > 0) gamesArray.push(g);
-                                                 }
-                                                 gamesArray.sort(function(a, b) { return (b.playTime || 0) - (a.playTime || 0); });
-                                             } else if (collectionPart === "lastplayed" || collectionPart === "last" || collectionPart === "recent") {
-                                                 for (var i = 0; i < api.allGames.count; i++) {
-                                                     var g = api.allGames.get(i);
-                                                     if (g.lastPlayed && g.lastPlayed > 0) gamesArray.push(g);
-                                                 }
-                                                 gamesArray.sort(function(a, b) { return (b.lastPlayed || 0) - (a.lastPlayed || 0); });
-                                             }
-                                             for (var i = 0; i < gamesArray.length; i++) {
-                                                 if (gamesArray[i].title === note.gameTitle) {
-                                                     collectionIndex = i;
-                                                     break;
-                                                 }
-                                             }
-                                         } else {
-                                             var targetCollection = null;
-                                             for (var i = 0; i < api.collections.count; i++) {
-                                                 var coll = api.collections.get(i);
-                                                 if (coll.shortName.toLowerCase() === collectionPart || coll.name.toLowerCase() === collectionPart) {
-                                                     targetCollection = coll;
-                                                     break;
-                                                 }
-                                             }
-                                             if (targetCollection && targetCollection.games) {
-                                                 for (var i = 0; i < targetCollection.games.count; i++) {
-                                                     if (targetCollection.games.get(i).title === note.gameTitle) {
-                                                         collectionIndex = i;
-                                                         break;
-                                                     }
-                                                 }
-                                             }
-                                         }
+                    if (virtualCollections[collectionPart]) {
+                        var gamesArray = [];
+                        if (collectionPart === "all" || collectionPart === "all-games" || collectionPart === "allgames") {
+                            for (var i = 0; i < api.allGames.count; i++) gamesArray.push(api.allGames.get(i));
+                        } else if (collectionPart === "favorites" || collectionPart === "fav") {
+                            for (var i = 0; i < api.allGames.count; i++) {
+                                var g = api.allGames.get(i);
+                                if (g.favorite) gamesArray.push(g);
+                            }
+                        } else if (collectionPart === "mostplayed" || collectionPart === "most") {
+                            for (var i = 0; i < api.allGames.count; i++) {
+                                var g = api.allGames.get(i);
+                                if (g.playTime && g.playTime > 0) gamesArray.push(g);
+                            }
+                            gamesArray.sort(function (a, b) { return (b.playTime || 0) - (a.playTime || 0); });
+                        } else if (collectionPart === "lastplayed" || collectionPart === "last" || collectionPart === "recent") {
+                            for (var i = 0; i < api.allGames.count; i++) {
+                                var g = api.allGames.get(i);
+                                if (g.lastPlayed && g.lastPlayed > 0) gamesArray.push(g);
+                            }
+                            gamesArray.sort(function (a, b) { return (b.lastPlayed || 0) - (a.lastPlayed || 0); });
+                        }
+                        for (var i = 0; i < gamesArray.length; i++) {
+                            if (gamesArray[i].title === note.gameTitle) {
+                                collectionIndex = i;
+                                break;
+                            }
+                        }
+                    } else {
+                        var targetCollection = null;
+                        for (var i = 0; i < api.collections.count; i++) {
+                            var coll = api.collections.get(i);
+                            if (coll.shortName.toLowerCase() === collectionPart || coll.name.toLowerCase() === collectionPart) {
+                                targetCollection = coll;
+                                break;
+                            }
+                        }
+                        if (targetCollection && targetCollection.games) {
+                            for (var i = 0; i < targetCollection.games.count; i++) {
+                                if (targetCollection.games.get(i).title === note.gameTitle) {
+                                    collectionIndex = i;
+                                    break;
+                                }
+                            }
+                        }
+                    }
 
-                                         stdout.push("");
-                                         stdout.push("Launch:");
-                                         if (collectionIndex !== -1) {
-                                             stdout.push("  launch @" + note.collection + ":" + collectionIndex);
-                                         } else {
-                                             stdout.push("  (could not determine index in collection)");
-                                         }
-                                         if (globalIndex !== -1) {
-                                             stdout.push("  launch " + globalIndex + "   (global index)");
-                                         } else {
-                                             stdout.push("  (could not determine global index)");
-                                         }
+                    stdout.push("");
+                    stdout.push("Launch:");
+                    if (collectionIndex !== -1) {
+                        stdout.push("  launch @" + note.collection + ":" + collectionIndex);
+                    } else {
+                        stdout.push("  (could not determine index in collection)");
+                    }
+                    if (globalIndex !== -1) {
+                        stdout.push("  launch " + globalIndex + "   (global index)");
+                    } else {
+                        stdout.push("  (could not determine global index)");
+                    }
 
-                                         if (n < foundNotes.length - 1) stdout.push(repeatString("-", 60));
-                                     }
-                                     return { stdout: stdout, stderr: [], exitCode: 0, sideEffects: {} };
-                                 }
+                    if (n < foundNotes.length - 1) stdout.push(repeatString("-", 60));
+                }
+                return { stdout: stdout, stderr: [], exitCode: 0, sideEffects: {} };
+            }
 
-                                 if (subcommand === "edit") {
-                                     if (args.length < 2) {
-                                         stderr.push("Usage: journal edit <id> [--title=\"new title\"] [--comment=\"new comment\"]");
-                                         return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
-                                     }
+            if (subcommand === "edit") {
+                if (args.length < 2) {
+                    stderr.push("Usage: journal edit <id> [--title=\"new title\"] [--comment=\"new comment\"]");
+                    return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                }
 
-                                     var noteId = parseInt(args[1]);
-                                     if (isNaN(noteId)) {
-                                         stderr.push("Invalid ID. Must be a number.");
-                                         return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
-                                     }
+                var noteId = parseInt(args[1]);
+                if (isNaN(noteId)) {
+                    stderr.push("Invalid ID. Must be a number.");
+                    return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                }
 
-                                     var noteToEdit = null;
-                                     for (var key in allNotes) {
-                                         if (allNotes[key].id === noteId) {
-                                             noteToEdit = allNotes[key];
-                                             break;
-                                         }
-                                     }
+                var noteToEdit = null;
+                for (var key in allNotes) {
+                    if (allNotes[key].id === noteId) {
+                        noteToEdit = allNotes[key];
+                        break;
+                    }
+                }
 
-                                     if (!noteToEdit) {
-                                         stderr.push("No note found with ID: " + noteId);
-                                         return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
-                                     }
+                if (!noteToEdit) {
+                    stderr.push("No note found with ID: " + noteId);
+                    return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                }
 
-                                     var changed = false;
-                                     if (flags.title !== undefined) {
-                                         noteToEdit.noteTitle = flags.title;
-                                         changed = true;
-                                     }
-                                     if (flags.comment !== undefined) {
-                                         noteToEdit.comment = flags.comment;
-                                         changed = true;
-                                     }
-                                     if (flags.timestamp !== undefined) {
-                                         noteToEdit.timestamp = Date.now();
-                                         changed = true;
-                                     }
+                var changed = false;
+                if (flags.title !== undefined) {
+                    noteToEdit.noteTitle = flags.title;
+                    changed = true;
+                }
+                if (flags.comment !== undefined) {
+                    noteToEdit.comment = flags.comment;
+                    changed = true;
+                }
+                if (flags.timestamp !== undefined) {
+                    noteToEdit.timestamp = Date.now();
+                    changed = true;
+                }
 
-                                     if (!changed) {
-                                         stderr.push("Nothing specified to edit. Use --title or --comment.");
-                                         return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
-                                     }
+                if (!changed) {
+                    stderr.push("Nothing specified to edit. Use --title or --comment.");
+                    return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                }
 
-                                     saveNotes();
-                                     stdout.push("Note ID " + noteId + " updated successfully.");
-                                     return { stdout: stdout, stderr: [], exitCode: 0, sideEffects: {} };
-                                 }
+                saveNotes();
+                stdout.push("Note ID " + noteId + " updated successfully.");
+                return { stdout: stdout, stderr: [], exitCode: 0, sideEffects: {} };
+            }
 
-                                 if (subcommand === "rm" || subcommand === "remove") {
-                                     if (args.length < 2) {
-                                         stderr.push("Usage: journal rm <id>");
-                                         return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
-                                     }
+            if (subcommand === "rm" || subcommand === "remove") {
+                if (args.length < 2) {
+                    stderr.push("Usage: journal rm <id>");
+                    return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                }
 
-                                     var noteId = parseInt(args[1]);
-                                     if (isNaN(noteId)) {
-                                         stderr.push("Invalid ID. Must be a number.");
-                                         return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
-                                     }
+                var noteId = parseInt(args[1]);
+                if (isNaN(noteId)) {
+                    stderr.push("Invalid ID. Must be a number.");
+                    return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                }
 
-                                     var newNotes = {};
-                                     var deleted = false;
-                                     for (var key in allNotes) {
-                                         if (allNotes[key].id !== noteId) {
-                                             newNotes[key] = allNotes[key];
-                                         } else {
-                                             deleted = true;
-                                         }
-                                     }
+                var newNotes = {};
+                var deleted = false;
+                for (var key in allNotes) {
+                    if (allNotes[key].id !== noteId) {
+                        newNotes[key] = allNotes[key];
+                    } else {
+                        deleted = true;
+                    }
+                }
 
-                                     if (!deleted) {
-                                         stderr.push("No note found with ID: " + noteId);
-                                         return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
-                                     }
+                if (!deleted) {
+                    stderr.push("No note found with ID: " + noteId);
+                    return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+                }
 
-                                     allNotes = newNotes;
-                                     saveNotes();
-                                     stdout.push("Note ID " + noteId + " deleted.");
-                                     return { stdout: stdout, stderr: [], exitCode: 0, sideEffects: {} };
-                                 }
+                allNotes = newNotes;
+                saveNotes();
+                stdout.push("Note ID " + noteId + " deleted.");
+                return { stdout: stdout, stderr: [], exitCode: 0, sideEffects: {} };
+            }
 
-                                 if (subcommand === "clear") {
-                                     if (flags.force || flags.yes || flags.f) {
-                                         allNotes = {};
-                                         saveNotes();
-                                         stdout.push("All notes have been deleted.");
-                                         return { stdout: stdout, stderr: [], exitCode: 0, sideEffects: {} };
-                                     } else {
-                                         stdout.push("⚠️  To delete ALL notes, use 'journal clear --force' or 'journal clear --yes'");
-                                         stdout.push("    This will permanently delete all your notes.");
-                                         return { stdout: stdout, stderr: [], exitCode: 0, sideEffects: {} };
-                                     }
-                                 }
+            if (subcommand === "clear") {
+                if (flags.force || flags.yes || flags.f) {
+                    allNotes = {};
+                    saveNotes();
+                    stdout.push("All notes have been deleted.");
+                    return { stdout: stdout, stderr: [], exitCode: 0, sideEffects: {} };
+                } else {
+                    stdout.push("⚠️  To delete ALL notes, use 'journal clear --force' or 'journal clear --yes'");
+                    stdout.push("    This will permanently delete all your notes.");
+                    return { stdout: stdout, stderr: [], exitCode: 0, sideEffects: {} };
+                }
+            }
 
-                                 if (!args[0].startsWith("@")) {
-                                     stderr.push("Unrecognized command. The first argument must be a game identifier (@...) or a subcommand (list, show, etc.).");
-                                     return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
-                                 }
+            if (!args[0].startsWith("@")) {
+                stderr.push("Unrecognized command. The first argument must be a game identifier (@...) or a subcommand (list, show, etc.).");
+                return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+            }
 
-                                 var identifier = args[0];
-                                 var gameInfo = findGameFromIdentifier(identifier);
+            var identifier = args[0];
+            var gameInfo = findGameFromIdentifier(identifier);
 
-                                 if (gameInfo.error) {
-                                     stderr.push(gameInfo.error);
-                                     return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
-                                 }
+            if (gameInfo.error) {
+                stderr.push(gameInfo.error);
+                return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+            }
 
-                                 var game = gameInfo.game;
-                                 var collectionName = gameInfo.collectionShortName;
-                                 var indexInCollection = gameInfo.indexInCollection;
-                                 var globalIndex = gameInfo.globalIndex;
+            var game = gameInfo.game;
+            var collectionName = gameInfo.collectionShortName;
+            var indexInCollection = gameInfo.indexInCollection;
+            var globalIndex = gameInfo.globalIndex;
 
-                                 if (!flags.title && !flags.comment) {
-                                     stderr.push("You must provide at least one --title or --comment to save the note.");
-                                     return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
-                                 }
+            if (!flags.title && !flags.comment) {
+                stderr.push("You must provide at least one --title or --comment to save the note.");
+                return { stdout: [], stderr: stderr, exitCode: 1, sideEffects: {} };
+            }
 
-                                 var newNote = {
-                                     id: getNextId(),
-                             gameTitle: game.title,
-                             collection: collectionName,
-                             gameIndexInCollection: indexInCollection,
-                             gameGlobalIndex: globalIndex,
-                             noteTitle: flags.title || "Note about " + game.title,
-                             comment: flags.comment || "",
-                             timestamp: Date.now()
-                                 };
+            var newNote = {
+                id: getNextId(),
+                gameTitle: game.title,
+                collection: collectionName,
+                gameIndexInCollection: indexInCollection,
+                gameGlobalIndex: globalIndex,
+                noteTitle: flags.title || "Note about " + game.title,
+                comment: flags.comment || "",
+                timestamp: Date.now()
+            };
 
-                                 allNotes[newNote.id] = newNote;
-                                 saveNotes();
+            allNotes[newNote.id] = newNote;
+            saveNotes();
 
-                                 stdout.push("Note saved successfully (ID: " + newNote.id + ")");
-                                 return { stdout: stdout, stderr: [], exitCode: 0, sideEffects: {} };
-                             }
+            stdout.push("Note saved successfully (ID: " + newNote.id + ")");
+            return { stdout: stdout, stderr: [], exitCode: 0, sideEffects: {} };
+        }
     });
 }
 

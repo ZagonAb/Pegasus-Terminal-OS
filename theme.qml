@@ -275,6 +275,30 @@ FocusScope {
             initializeKernel();
         }
 
+        function cleanDirName(originalName) {
+            if (!originalName) return "";
+
+            var cleaned = originalName
+            .replace(/\//g, ' ')
+            .replace(/\\/g, ' ')
+            .replace(/:/g, ' ')
+            .replace(/\?/g, ' ')
+            .replace(/\*/g, ' ')
+            .replace(/"/g, ' ')
+            .replace(/'/g, ' ')
+            .replace(/</g, ' ')
+            .replace(/>/g, ' ')
+            .replace(/\|/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+
+            if (cleaned === "") {
+                cleaned = "unknown-" + Date.now();
+            }
+
+            return cleaned.toLowerCase();
+        }
+
         function findGameByExactTitle(title) {
             var lowerTitle = title.trim().toLowerCase();
             for (var i = 0; i < api.allGames.count; i++) {
@@ -326,14 +350,16 @@ FocusScope {
                         command: "",
                         result: output,
                         isSystem: true,
-                        isError: false
+                        isError: false,
+                        cwd: terminalKernel.cwd
                     });
                     terminalModel.append({
                         prompt: prompt,
                         command: currentText,
                         result: "",
                         isSystem: false,
-                        isError: false
+                        isError: false,
+                        cwd: terminalKernel.cwd
                     });
                 }
 
@@ -379,7 +405,8 @@ FocusScope {
                     prompt: "",
                     command: "",
                     result: "|========================================|\n   PEGASUS TERMINAL OS v1.0 by: ZagonAb\n|========================================|",
-                    isSystem: true
+                    isSystem: true,
+                    cwd: "/"
                 });
             }
 
@@ -389,13 +416,15 @@ FocusScope {
                         prompt: "",
                         command: "",
                         result: "[SYSTEM] No users found.\nLet's create your first user.",
-                        isSystem: true
+                        isSystem: true,
+                        cwd: "/"
                     });
                     terminalModel.append({
                         prompt: "username: ",
                         command: "",
                         result: "",
-                        isSystem: false
+                        isSystem: false,
+                        cwd: "/"
                     });
                 }
 
@@ -407,7 +436,8 @@ FocusScope {
                         prompt: "username: ",
                         command: "",
                         result: "",
-                        isSystem: false
+                        isSystem: false,
+                        cwd: "/"
                     });
                 }
 
@@ -505,7 +535,12 @@ FocusScope {
                     { name: "All-games", type: "directory" },
                     { name: "Favorites", type: "directory" },
                     { name: "LastPlayed", type: "directory" },
-                    { name: "MostPlayed", type: "directory" }
+                    { name: "MostPlayed", type: "directory" },
+                    { name: "genre", type: "directory" },
+                    { name: "developer", type: "directory" },
+                    { name: "publisher", type: "directory" },
+                    { name: "year", type: "directory" },
+                    { name: "rating", type: "directory" }
                 ];
 
                 return {
@@ -519,207 +554,806 @@ FocusScope {
 
             var firstSegment = segments[0].toLowerCase();
 
-            if (firstSegment === "collections") {
-                if (segments.length === 1) {
-                    return {
-                        type: "directory",
-                        path: "/collections",
-                        name: "Collections",
-                        vfsPath: "/Collections",
-                        contents: listCollections()
-                    };
-                }
-
-                var collectionName = segments[1];
-                var collection = findCollection(collectionName);
-                if (!collection) {
-                    return { type: "error", error: "Collection not found" };
-                }
-
-                if (segments.length === 2) {
-                    return {
-                        type: "directory",
-                        path: "/collections/" + collectionName,
-                        name: collectionName,
-                        vfsPath: "/Collections/" + collectionName,
-                        contents: [
-                            { name: "games", type: "directory" }
-                        ]
-                    };
-                }
-
-                if (segments[2].toLowerCase() === "games") {
-                    return {
-                        type: "directory",
-                        path: "/collections/" + collectionName + "/games",
-                        name: "games",
-                        vfsPath: "/Collections/" + collectionName + "/games",
-                        contents: listGamesInCollection(collection)
-                    };
-                }
+            if (firstSegment === "genre" && segments.length >= 2) {
+                return resolveDynamicGenre(segments);
             }
 
-            if (firstSegment === "all-games") {
-                if (segments.length === 1) {
-                    var allGamesList = [];
-                    for (var i = 0; i < api.allGames.count; i++) {
-                        var game = api.allGames.get(i);
-                        allGamesList.push({
-                            name: game.title,
-                            type: "game"
-                        });
+            if (firstSegment === "developer" && segments.length >= 2) {
+                return resolveDynamicDeveloper(segments);
+            }
+
+            if (firstSegment === "publisher" && segments.length >= 2) {
+                return resolveDynamicPublisher(segments);
+            }
+
+            if (firstSegment === "year" && segments.length >= 2) {
+                return resolveDynamicYear(segments);
+            }
+
+            if (firstSegment === "rating" && segments.length >= 2) {
+                return resolveDynamicRating(segments);
+            }
+
+            if (segments.length === 1 &&
+                (firstSegment === "genre" || firstSegment === "developer" ||
+                firstSegment === "publisher" || firstSegment === "year" ||
+                firstSegment === "rating")) {
+                return resolveDynamicList(firstSegment);
+                }
+
+                if (firstSegment === "collections") {
+                    if (segments.length === 1) {
+                        return {
+                            type: "directory",
+                            path: "/collections",
+                            name: "Collections",
+                            vfsPath: "/Collections",
+                            contents: listCollections()
+                        };
                     }
 
-                    return {
-                        type: "directory",
-                        path: "/all-games",
-                        name: "All-games",
-                        vfsPath: "/All-games",
-                        contents: allGamesList
-                    };
-                }
-            }
+                    var collectionName = segments[1];
+                    var collection = findCollection(collectionName);
+                    if (!collection) {
+                        return { type: "error", error: "Collection not found" };
+                    }
 
-            if (firstSegment === "favorites") {
-                if (segments.length === 1) {
-                    var favoritesList = [];
-                    for (var i = 0; i < api.allGames.count; i++) {
-                        var game = api.allGames.get(i);
-                        if (game.favorite) {
-                            favoritesList.push({
+                    if (segments.length === 2) {
+                        return {
+                            type: "directory",
+                            path: "/collections/" + collectionName,
+                            name: collectionName,
+                            vfsPath: "/Collections/" + collectionName,
+                            contents: [
+                                { name: "games", type: "directory" }
+                            ]
+                        };
+                    }
+
+                    if (segments[2].toLowerCase() === "games") {
+                        return {
+                            type: "directory",
+                            path: "/collections/" + collectionName + "/games",
+                            name: "games",
+                            vfsPath: "/Collections/" + collectionName + "/games",
+                            contents: listGamesInCollection(collection)
+                        };
+                    }
+                }
+
+                if (firstSegment === "all-games") {
+                    if (segments.length === 1) {
+                        var allGamesList = [];
+                        for (var i = 0; i < api.allGames.count; i++) {
+                            var game = api.allGames.get(i);
+                            allGamesList.push({
                                 name: game.title,
                                 type: "game"
                             });
                         }
+                        return {
+                            type: "directory",
+                            path: "/all-games",
+                            name: "All-games",
+                            vfsPath: "/All-games",
+                            contents: allGamesList
+                        };
                     }
-
-                    return {
-                        type: "directory",
-                        path: "/favorites",
-                        name: "Favorites",
-                        vfsPath: "/Favorites",
-                        contents: favoritesList
-                    };
                 }
-            }
 
-            if (firstSegment === "lastplayed") {
-                if (segments.length === 1) {
-                    var lastPlayedList = [];
-                    var gamesArray = [];
-
-                    for (var i = 0; i < api.allGames.count; i++) {
-                        var game = api.allGames.get(i);
-                        if (game.lastPlayed && game.lastPlayed > 0) {
-                            gamesArray.push(game);
+                if (firstSegment === "favorites") {
+                    if (segments.length === 1) {
+                        var favoritesList = [];
+                        for (var i = 0; i < api.allGames.count; i++) {
+                            var game = api.allGames.get(i);
+                            if (game.favorite) {
+                                favoritesList.push({
+                                    name: game.title,
+                                    type: "game"
+                                });
+                            }
                         }
+                        return {
+                            type: "directory",
+                            path: "/favorites",
+                            name: "Favorites",
+                            vfsPath: "/Favorites",
+                            contents: favoritesList
+                        };
                     }
-
-                    gamesArray.sort(function(a, b) {
-                        return (b.lastPlayed || 0) - (a.lastPlayed || 0);
-                    });
-
-                    for (var i = 0; i < gamesArray.length; i++) {
-                        lastPlayedList.push({
-                            name: gamesArray[i].title,
-                            type: "game"
-                        });
-                    }
-
-                    return {
-                        type: "directory",
-                        path: "/lastplayed",
-                        name: "LastPlayed",
-                        vfsPath: "/LastPlayed",
-                        contents: lastPlayedList
-                    };
                 }
-            }
 
-            if (firstSegment === "mostplayed") {
-                if (segments.length === 1) {
-                    var mostPlayedList = [];
-                    var gamesArray = [];
+                if (firstSegment === "lastplayed") {
+                    if (segments.length === 1) {
+                        var lastPlayedList = [];
+                        var gamesArray = [];
 
-                    for (var i = 0; i < api.allGames.count; i++) {
-                        var game = api.allGames.get(i);
-                        if (game.playTime && game.playTime > 0) {
-                            gamesArray.push(game);
+                        for (var i = 0; i < api.allGames.count; i++) {
+                            var game = api.allGames.get(i);
+                            if (game.lastPlayed && game.lastPlayed > 0) {
+                                gamesArray.push(game);
+                            }
                         }
-                    }
 
-                    gamesArray.sort(function(a, b) {
-                        return (b.playTime || 0) - (a.playTime || 0);
-                    });
-
-                    for (var i = 0; i < gamesArray.length; i++) {
-                        mostPlayedList.push({
-                            name: gamesArray[i].title,
-                            type: "game"
+                        gamesArray.sort(function(a, b) {
+                            return (b.lastPlayed || 0) - (a.lastPlayed || 0);
                         });
-                    }
 
-                    return {
-                        type: "directory",
-                        path: "/mostplayed",
-                        name: "MostPlayed",
-                        vfsPath: "/MostPlayed",
-                        contents: mostPlayedList
-                    };
-                }
-            }
-
-            if (firstSegment === "home") {
-                if (segments.length === 1) {
-                    var users = api.memory.get("terminal_users") || {};
-                    var userDirs = [];
-                    for (var username in users) {
-                        if (users.hasOwnProperty(username)) {
-                            userDirs.push({
-                                name: username,
-                                type: "directory"
+                        for (var i = 0; i < gamesArray.length; i++) {
+                            lastPlayedList.push({
+                                name: gamesArray[i].title,
+                                type: "game"
                             });
                         }
-                    }
 
-                    return {
-                        type: "directory",
-                        path: "/home",
-                        name: "home",
-                        vfsPath: "/home",
-                        contents: userDirs
-                    };
+                        return {
+                            type: "directory",
+                            path: "/lastplayed",
+                            name: "LastPlayed",
+                            vfsPath: "/LastPlayed",
+                            contents: lastPlayedList
+                        };
+                    }
                 }
 
-                var homeUser = segments[1];
-                return {
-                    type: "directory",
-                    path: "/home/" + homeUser,
-                    name: homeUser,
-                    vfsPath: "/home/" + homeUser,
-                    contents: [
-                        { name: "Documents", type: "directory" },
-                        { name: "Downloads", type: "directory" }
-                    ]
-                };
-            }
+                if (firstSegment === "mostplayed") {
+                    if (segments.length === 1) {
+                        var mostPlayedList = [];
+                        var gamesArray = [];
 
-            if (firstSegment === "system") {
-                if (segments.length === 1) {
+                        for (var i = 0; i < api.allGames.count; i++) {
+                            var game = api.allGames.get(i);
+                            if (game.playTime && game.playTime > 0) {
+                                gamesArray.push(game);
+                            }
+                        }
+
+                        gamesArray.sort(function(a, b) {
+                            return (b.playTime || 0) - (a.playTime || 0);
+                        });
+
+                        for (var i = 0; i < gamesArray.length; i++) {
+                            mostPlayedList.push({
+                                name: gamesArray[i].title,
+                                type: "game"
+                            });
+                        }
+
+                        return {
+                            type: "directory",
+                            path: "/mostplayed",
+                            name: "MostPlayed",
+                            vfsPath: "/MostPlayed",
+                            contents: mostPlayedList
+                        };
+                    }
+                }
+
+                if (firstSegment === "home") {
+                    if (segments.length === 1) {
+                        var users = api.memory.get("terminal_users") || {};
+                        var userDirs = [];
+                        for (var username in users) {
+                            if (users.hasOwnProperty(username)) {
+                                userDirs.push({
+                                    name: username,
+                                    type: "directory"
+                                });
+                            }
+                        }
+                        return {
+                            type: "directory",
+                            path: "/home",
+                            name: "home",
+                            vfsPath: "/home",
+                            contents: userDirs
+                        };
+                    }
+
+                    var homeUser = segments[1];
                     return {
                         type: "directory",
-                        path: "/system",
-                        name: "system",
-                        vfsPath: "/system",
+                        path: "/home/" + homeUser,
+                        name: homeUser,
+                        vfsPath: "/home/" + homeUser,
                         contents: [
-                            { name: "version.txt", type: "file" },
-                            { name: "config", type: "directory" }
+                            { name: "Documents", type: "directory" },
+                            { name: "Downloads", type: "directory" }
                         ]
                     };
                 }
+
+                if (firstSegment === "system") {
+                    if (segments.length === 1) {
+                        return {
+                            type: "directory",
+                            path: "/system",
+                            name: "system",
+                            vfsPath: "/system",
+                            contents: [
+                                { name: "version.txt", type: "file" },
+                                { name: "config", type: "directory" }
+                            ]
+                        };
+                    }
+                }
+
+                return { type: "error", error: "PATH_NOT_FOUND" };
+        }
+
+        function resolveDynamicGenre(segments) {
+            var identifier = segments[1].toLowerCase();
+
+            if (segments.length === 2) {
+                var genreMap = new Map();
+                for (var i = 0; i < api.allGames.count; i++) {
+                    var game = api.allGames.get(i);
+                    game.genreList.forEach(g => {
+                        if (g && g.trim() !== "") {
+                            var originalName = g.trim();
+                            var cleanName = cleanDirName(originalName);
+
+                            if (!genreMap.has(cleanName)) {
+                                genreMap.set(cleanName, {
+                                    originalName: originalName,
+                                    cleanName: cleanName,
+                                    count: 0
+                                });
+                            }
+                            var entry = genreMap.get(cleanName);
+                            entry.count++;
+                        }
+                    });
+                }
+
+                var genreEntries = [];
+                genreMap.forEach((value, key) => {
+                    genreEntries.push({
+                        cleanName: key,
+                        originalName: value.originalName,
+                        count: value.count
+                    });
+                });
+                genreEntries.sort((a, b) => a.cleanName.localeCompare(b.cleanName));
+
+                var targetGenre = null;
+                var targetCleanName = null;
+                var targetIndex = -1;
+                var index = parseInt(identifier);
+
+                if (!isNaN(index) && index >= 0 && index < genreEntries.length) {
+                    targetCleanName = genreEntries[index].cleanName;
+                    targetGenre = genreEntries[index].originalName;
+                    targetIndex = index;
+                } else {
+                    for (var i = 0; i < genreEntries.length; i++) {
+                        if (genreEntries[i].cleanName === identifier) {
+                            targetCleanName = genreEntries[i].cleanName;
+                            targetGenre = genreEntries[i].originalName;
+                            targetIndex = i;
+                            break;
+                        }
+                    }
+                }
+
+                if (!targetGenre) {
+                    return { type: "error", error: "Genre not found: " + identifier };
+                }
+
+                var gameList = [];
+                for (var i = 0; i < api.allGames.count; i++) {
+                    var game = api.allGames.get(i);
+                    for (var g = 0; g < game.genreList.length; g++) {
+                        var gameGenre = game.genreList[g];
+                        if (gameGenre && cleanDirName(gameGenre) === targetCleanName) {
+                            gameList.push({
+                                name: game.title,
+                                type: "game"
+                            });
+                            break;
+                        }
+                    }
+                }
+
+                var displayPath = "/genre/" + targetCleanName;
+                var displayName = targetIndex + "- " + targetCleanName + " (" + gameList.length + " game" + (gameList.length !== 1 ? "s" : "") + ")";
+
+                return {
+                    type: "directory",
+                    path: displayPath,
+                    name: displayName,
+                    vfsPath: "/genre/" + targetCleanName,
+                    contents: gameList
+                };
             }
 
-            return { type: "error", error: "PATH_NOT_FOUND" };
+            return { type: "error", error: "Invalid path" };
+        }
+
+        function resolveDynamicDeveloper(segments) {
+            var identifier = segments[1].toLowerCase();
+
+            if (segments.length === 2) {
+                var devMap = new Map();
+                for (var i = 0; i < api.allGames.count; i++) {
+                    var game = api.allGames.get(i);
+                    game.developerList.forEach(d => {
+                        if (d && d.trim() !== "") {
+                            var originalName = d.trim();
+                            var cleanName = cleanDirName(originalName);
+
+                            if (!devMap.has(cleanName)) {
+                                devMap.set(cleanName, {
+                                    originalName: originalName,
+                                    cleanName: cleanName,
+                                    count: 0
+                                });
+                            }
+                            var entry = devMap.get(cleanName);
+                            entry.count++;
+                        }
+                    });
+                }
+
+                var devEntries = [];
+                devMap.forEach((value, key) => {
+                    devEntries.push({
+                        cleanName: key,
+                        originalName: value.originalName,
+                        count: value.count
+                    });
+                });
+                devEntries.sort((a, b) => a.cleanName.localeCompare(b.cleanName));
+
+                var targetDev = null;
+                var targetCleanName = null;
+                var targetIndex = -1;
+
+                var index = parseInt(identifier);
+                if (!isNaN(index) && index >= 0 && index < devEntries.length) {
+                    targetCleanName = devEntries[index].cleanName;
+                    targetDev = devEntries[index].originalName;
+                    targetIndex = index;
+                } else {
+                    for (var i = 0; i < devEntries.length; i++) {
+                        if (devEntries[i].cleanName === identifier) {
+                            targetCleanName = devEntries[i].cleanName;
+                            targetDev = devEntries[i].originalName;
+                            targetIndex = i;
+                            break;
+                        }
+                    }
+                }
+
+                if (!targetDev) {
+                    return { type: "error", error: "Developer not found: " + identifier };
+                }
+
+                var gameList = [];
+                for (var i = 0; i < api.allGames.count; i++) {
+                    var game = api.allGames.get(i);
+                    for (var d = 0; d < game.developerList.length; d++) {
+                        var gameDev = game.developerList[d];
+                        if (gameDev && cleanDirName(gameDev) === targetCleanName) {
+                            gameList.push({
+                                name: game.title,
+                                type: "game"
+                            });
+                            break;
+                        }
+                    }
+                }
+
+                var displayPath = "/developer/" + targetCleanName;
+                var displayName = targetIndex + "- " + targetCleanName + " (" + gameList.length + " game" + (gameList.length !== 1 ? "s" : "") + ")";
+
+                return {
+                    type: "directory",
+                    path: displayPath,
+                    name: displayName,
+                    vfsPath: "/developer/" + targetCleanName,
+                    contents: gameList
+                };
+            }
+
+            return { type: "error", error: "Invalid path" };
+        }
+
+        function resolveDynamicPublisher(segments) {
+            var identifier = segments[1].toLowerCase();
+
+            if (segments.length === 2) {
+                var pubMap = new Map();
+                for (var i = 0; i < api.allGames.count; i++) {
+                    var game = api.allGames.get(i);
+                    game.publisherList.forEach(p => {
+                        if (p && p.trim() !== "") {
+                            var key = p.toLowerCase().trim();
+                            if (!pubMap.has(key)) {
+                                pubMap.set(key, {
+                                    originalName: p,
+                                    count: 0
+                                });
+                            }
+                            var entry = pubMap.get(key);
+                            entry.count++;
+                        }
+                    });
+                }
+
+                var pubEntries = [];
+                pubMap.forEach((value, key) => {
+                    pubEntries.push({
+                        key: key,
+                        originalName: value.originalName
+                    });
+                });
+                pubEntries.sort((a, b) => a.originalName.localeCompare(b.originalName));
+
+                var targetPub = null;
+                var targetKey = null;
+
+                var index = parseInt(identifier);
+                if (!isNaN(index) && index >= 0 && index < pubEntries.length) {
+                    targetKey = pubEntries[index].key;
+                    targetPub = pubEntries[index].originalName;
+                } else {
+                    for (var i = 0; i < pubEntries.length; i++) {
+                        if (pubEntries[i].key === identifier) {
+                            targetKey = pubEntries[i].key;
+                            targetPub = pubEntries[i].originalName;
+                            break;
+                        }
+                    }
+                }
+
+                if (!targetPub) {
+                    return { type: "error", error: "Publisher not found: " + identifier };
+                }
+
+                var gameList = [];
+                for (var i = 0; i < api.allGames.count; i++) {
+                    var game = api.allGames.get(i);
+                    if (game.publisherList.some(p => p.toLowerCase() === targetKey)) {
+                        gameList.push({
+                            name: game.title,
+                            type: "game"
+                        });
+                    }
+                }
+
+                return {
+                    type: "directory",
+                    path: "/publisher/" + targetKey,
+                    name: targetPub,
+                    vfsPath: "/publisher/" + targetKey,
+                    contents: gameList
+                };
+            }
+
+            return { type: "error", error: "Invalid path" };
+        }
+
+        function resolveDynamicYear(segments) {
+            var identifier = segments[1];
+
+            if (segments.length === 2) {
+                var yearMap = new Map();
+                for (var i = 0; i < api.allGames.count; i++) {
+                    var game = api.allGames.get(i);
+                    if (game.releaseYear > 0) {
+                        var year = game.releaseYear.toString();
+                        if (!yearMap.has(year)) {
+                            yearMap.set(year, 0);
+                        }
+                        yearMap.set(year, yearMap.get(year) + 1);
+                    }
+                }
+
+                var yearEntries = [];
+                yearMap.forEach((count, year) => {
+                    yearEntries.push({
+                        year: year,
+                        count: count
+                    });
+                });
+                yearEntries.sort((a, b) => parseInt(b.year) - parseInt(a.year));
+
+                var targetYear = null;
+                var yearNum = parseInt(identifier);
+                if (!isNaN(yearNum) && yearNum > 0) {
+
+                    for (var i = 0; i < yearEntries.length; i++) {
+                        if (parseInt(yearEntries[i].year) === yearNum) {
+                            targetYear = yearEntries[i].year;
+                            break;
+                        }
+                    }
+                }
+
+                if (!targetYear) {
+                    return { type: "error", error: "Year not found: " + identifier };
+                }
+
+                var gameList = [];
+                for (var i = 0; i < api.allGames.count; i++) {
+                    var game = api.allGames.get(i);
+                    if (game.releaseYear === parseInt(targetYear)) {
+                        gameList.push({
+                            name: game.title,
+                            type: "game"
+                        });
+                    }
+                }
+
+                return {
+                    type: "directory",
+                    path: "/year/" + targetYear,
+                    name: targetYear,
+                    vfsPath: "/year/" + targetYear,
+                    contents: gameList
+                };
+            }
+
+            return { type: "error", error: "Invalid path" };
+        }
+
+        function resolveDynamicRating(segments) {
+            var identifier = segments[1].toLowerCase();
+
+            if (segments.length === 2) {
+                var ratingRanges = [
+                    { key: "90plus", display: "90plus (90-100%)", min: 0.9, max: 1.0 },
+                    { key: "80plus", display: "80plus (80-89%)", min: 0.8, max: 0.899 },
+                    { key: "70plus", display: "70plus (70-79%)", min: 0.7, max: 0.799 },
+                    { key: "60plus", display: "60plus (60-69%)", min: 0.6, max: 0.699 },
+                    { key: "below60", display: "below60 (<60%)", min: 0.0, max: 0.599 }
+                ];
+
+                for (var r = 0; r < ratingRanges.length; r++) {
+                    ratingRanges[r].count = 0;
+                }
+
+                for (var i = 0; i < api.allGames.count; i++) {
+                    var game = api.allGames.get(i);
+                    if (game.rating > 0) {
+                        for (var r = 0; r < ratingRanges.length; r++) {
+                            var range = ratingRanges[r];
+                            if (game.rating >= range.min && game.rating <= range.max) {
+                                ratingRanges[r].count++;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                var targetRange = null;
+
+
+                var index = parseInt(identifier);
+                if (!isNaN(index) && index >= 0 && index < ratingRanges.length) {
+                    targetRange = ratingRanges[index];
+                } else {
+
+                    for (var r = 0; r < ratingRanges.length; r++) {
+                        if (ratingRanges[r].key === identifier) {
+                            targetRange = ratingRanges[r];
+                            break;
+                        }
+                    }
+                }
+
+                if (!targetRange) {
+                    return {
+                        type: "error",
+                        error: "Rating range not found. Use: 90plus, 80plus, 70plus, 60plus, below60 or indices 0-" + (ratingRanges.length - 1)
+                    };
+                }
+
+                var gameList = [];
+                for (var i = 0; i < api.allGames.count; i++) {
+                    var game = api.allGames.get(i);
+                    if (game.rating >= targetRange.min && game.rating <= targetRange.max) {
+                        gameList.push({
+                            name: game.title,
+                            type: "game"
+                        });
+                    }
+                }
+
+                if (gameList.length === 0) {
+                    return { type: "error", error: "No games found for rating range " + targetRange.key };
+                }
+
+                var displayName = targetRange.display;
+                for (var r = 0; r < ratingRanges.length; r++) {
+                    if (ratingRanges[r].key === targetRange.key) {
+                        displayName = r + "- " + targetRange.display + " (" + targetRange.count + " game" + (targetRange.count !== 1 ? "s" : "") + ")";
+                        break;
+                    }
+                }
+
+                return {
+                    type: "directory",
+                    path: "/rating/" + targetRange.key,
+                    name: displayName,
+                    vfsPath: "/rating/" + targetRange.key,
+                    contents: gameList
+                };
+            }
+
+            return { type: "error", error: "Invalid path" };
+        }
+
+        function resolveDynamicList(property) {
+            var valuesMap = new Map();
+
+            if (property === "genre") {
+                for (var i = 0; i < api.allGames.count; i++) {
+                    var game = api.allGames.get(i);
+                    game.genreList.forEach(g => {
+                        if (g && g.trim() !== "") {
+                            var originalName = g.trim();
+                            var cleanName = cleanDirName(originalName);
+
+                            if (!valuesMap.has(cleanName)) {
+                                valuesMap.set(cleanName, {
+                                    originalName: originalName,
+                                    cleanName: cleanName,
+                                    count: 0
+                                });
+                            }
+                            var entry = valuesMap.get(cleanName);
+                            entry.count++;
+                        }
+                    });
+                }
+            } else if (property === "developer") {
+                for (var i = 0; i < api.allGames.count; i++) {
+                    var game = api.allGames.get(i);
+                    game.developerList.forEach(d => {
+                        if (d && d.trim() !== "") {
+                            var originalName = d.trim();
+                            var cleanName = cleanDirName(originalName);
+
+                            if (!valuesMap.has(cleanName)) {
+                                valuesMap.set(cleanName, {
+                                    originalName: originalName,
+                                    cleanName: cleanName,
+                                    count: 0
+                                });
+                            }
+                            var entry = valuesMap.get(cleanName);
+                            entry.count++;
+                        }
+                    });
+                }
+            } else if (property === "publisher") {
+                for (var i = 0; i < api.allGames.count; i++) {
+                    var game = api.allGames.get(i);
+                    game.publisherList.forEach(p => {
+                        if (p && p.trim() !== "") {
+                            var originalName = p.trim();
+                            var cleanName = cleanDirName(originalName);
+
+                            if (!valuesMap.has(cleanName)) {
+                                valuesMap.set(cleanName, {
+                                    originalName: originalName,
+                                    cleanName: cleanName,
+                                    count: 0
+                                });
+                            }
+                            var entry = valuesMap.get(cleanName);
+                            entry.count++;
+                        }
+                    });
+                }
+            } else if (property === "year") {
+                for (var i = 0; i < api.allGames.count; i++) {
+                    var game = api.allGames.get(i);
+                    if (game.releaseYear > 0) {
+                        var year = game.releaseYear.toString();
+                        var key = year;
+                        if (!valuesMap.has(key)) {
+                            valuesMap.set(key, {
+                                originalName: year,
+                                cleanName: year,
+                                count: 0
+                            });
+                        }
+                        var entry = valuesMap.get(key);
+                        entry.count++;
+                    }
+                }
+            } else if (property === "rating") {
+
+                var ratingRanges = [
+                    { key: "90plus", display: "90plus (90-100%)", min: 0.9, max: 1.0 },
+                    { key: "80plus", display: "80plus (80-89%)", min: 0.8, max: 0.899 },
+                    { key: "70plus", display: "70plus (70-79%)", min: 0.7, max: 0.799 },
+                    { key: "60plus", display: "60plus (60-69%)", min: 0.6, max: 0.699 },
+                    { key: "below60", display: "below60 (<60%)", min: 0.0, max: 0.599 }
+                ];
+
+                ratingRanges.forEach(range => {
+                    valuesMap.set(range.key, {
+                        originalName: range.display,
+                        cleanName: range.key,
+                        count: 0,
+                        index: -1
+                    });
+                });
+
+                for (var i = 0; i < api.allGames.count; i++) {
+                    var game = api.allGames.get(i);
+                    if (game.rating > 0) {
+                        for (var r = 0; r < ratingRanges.length; r++) {
+                            var range = ratingRanges[r];
+                            if (game.rating >= range.min && game.rating <= range.max) {
+                                var entry = valuesMap.get(range.key);
+                                entry.count++;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            var entries = [];
+            valuesMap.forEach((value, key) => {
+                entries.push({
+                    key: key,
+                    originalName: value.originalName,
+                    cleanName: value.cleanName,
+                    count: value.count
+                });
+            });
+
+            if (property === "year") {
+                entries.sort((a, b) => parseInt(b.key) - parseInt(a.key));
+            } else if (property === "rating") {
+                entries.sort((a, b) => {
+                    var order = ["90plus", "80plus", "70plus", "60plus", "below60"];
+                    return order.indexOf(a.key) - order.indexOf(b.key);
+                });
+            } else {
+                entries.sort((a, b) => a.cleanName.localeCompare(b.cleanName));
+            }
+
+            var contents = [];
+            for (var idx = 0; idx < entries.length; idx++) {
+                var entry = entries[idx];
+                var displayName = "";
+
+                if (property === "year") {
+                    displayName = idx + "- " + entry.cleanName + " (" + entry.count + " game" + (entry.count !== 1 ? "s" : "") + ")";
+                } else if (property === "rating") {
+                    displayName = idx + "- " + entry.cleanName + " (" + entry.count + " game" + (entry.count !== 1 ? "s" : "") + ")";
+                } else {
+                    displayName = idx + "- " + entry.cleanName + " (" + entry.count + " game" + (entry.count !== 1 ? "s" : "") + ")";
+                }
+
+                contents.push({
+                    name: displayName,
+                type: "directory",
+                dirName: entry.cleanName,
+                originalName: entry.originalName,
+                index: idx,
+                count: entry.count
+                });
+            }
+
+            return {
+                type: "directory",
+                path: "/" + property,
+                name: property,
+                vfsPath: "/" + property,
+                contents: contents
+            };
+        }
+
+        function getDynamicDirName(item) {
+            return item.dirName || item.name;
         }
 
         function getUserPath(vfsPath) {
@@ -729,45 +1363,53 @@ FocusScope {
                 return "~";
             }
 
-            if (vfsPath.startsWith("/home/" + currentUser)) {
-                return vfsPath.replace("/home/" + currentUser, "~");
-            }
-
-            if (vfsPath === "/All-Games") {
-                return "~/All-Games";
-            }
-            else if (vfsPath === "/Favorites") {
-                return "~/Favorites";
-            }
-            else if (vfsPath === "/MostPlayed") {
-                return "~/MostPlayed";
-            }
-            else if (vfsPath === "/LastPlayed") {
-                return "~/LastPlayed";
-            }
-            else if (vfsPath.startsWith("/Collections/")) {
-                var parts = vfsPath.split("/").filter(function(s) { return s !== ""; });
-                if (parts.length >= 2) {
-                    var collectionName = parts[1];
-                    var userPath = "~/Collections/" + collectionName;
-                    if (parts.length >= 3 && parts[2] === "games") {
-                        userPath += "/games";
-                    }
-                    return userPath;
-                }
-            }
-            else if (vfsPath === "/system") {
-                return "~/system";
-            }
-            else if (vfsPath === "/home") {
-                return "~";
-            }
-
-            if (vfsPath.startsWith("/")) {
+            if (vfsPath.startsWith("/genre/") ||
+                vfsPath.startsWith("/developer/") ||
+                vfsPath.startsWith("/publisher/") ||
+                vfsPath.startsWith("/year/") ||
+                vfsPath.startsWith("/rating/")) {
                 return "~" + vfsPath;
-            }
+                }
 
-            return vfsPath;
+                if (vfsPath.startsWith("/home/" + currentUser)) {
+                    return vfsPath.replace("/home/" + currentUser, "~");
+                }
+
+                if (vfsPath === "/All-Games") {
+                    return "~/All-Games";
+                }
+                else if (vfsPath === "/Favorites") {
+                    return "~/Favorites";
+                }
+                else if (vfsPath === "/MostPlayed") {
+                    return "~/MostPlayed";
+                }
+                else if (vfsPath === "/LastPlayed") {
+                    return "~/LastPlayed";
+                }
+                else if (vfsPath.startsWith("/Collections/")) {
+                    var parts = vfsPath.split("/").filter(function(s) { return s !== ""; });
+                    if (parts.length >= 2) {
+                        var collectionName = parts[1];
+                        var userPath = "~/Collections/" + collectionName;
+                        if (parts.length >= 3 && parts[2] === "games") {
+                            userPath += "/games";
+                        }
+                        return userPath;
+                    }
+                }
+                else if (vfsPath === "/system") {
+                    return "~/system";
+                }
+                else if (vfsPath === "/home") {
+                    return "~";
+                }
+
+                if (vfsPath.startsWith("/")) {
+                    return "~" + vfsPath;
+                }
+
+                return vfsPath;
         }
 
         function findCollection(shortName) {
@@ -1129,7 +1771,7 @@ FocusScope {
                 }
 
                 if (now - parseInt(firstRun) < oneDay) {
-                    stats.push("✨ New command added: 'journal' - try it out! (update 15-2-26)");
+                    stats.push("✨ New virtual collections: genre, publisher, developer, year, rating (update-16-2-26)");
                     stats.push("");
                 }
 
@@ -1371,7 +2013,8 @@ FocusScope {
                     prompt: "",
                     command: "",
                     result: "User '" + username + "' created successfully.",
-                    isSystem: true
+                    isSystem: true,
+                    cwd: "/"
                 });
             }
 
@@ -1471,6 +2114,83 @@ FocusScope {
             return null;
         }
 
+        function getGamesForCurrentPath() {
+            var resolved = resolveVfsNode(cwd);
+            if (!resolved || resolved.type === "error" || !resolved.contents) {
+                return [];
+            }
+
+            var games = [];
+            for (var i = 0; i < resolved.contents.length; i++) {
+                var item = resolved.contents[i];
+                if (item.type === "game") {
+                    var game = findGameByExactTitle(item.name);
+                    if (game) {
+                        games.push(game);
+                    }
+                }
+            }
+            return games;
+        }
+
+        function isDynamicPath(path) {
+            if (!path) return false;
+            return path.startsWith("/genre/") ||
+                   path.startsWith("/developer/") ||
+                   path.startsWith("/publisher/") ||
+                   path.startsWith("/year/") ||
+                   path.startsWith("/rating/");
+        }
+
+        function resolveDynamicCollectionName(name) {
+            var dynamicTypes = ["genre", "developer", "publisher", "year", "rating"];
+            var slashIndex = name.indexOf("/");
+            if (slashIndex > 0) {
+                var typePart = name.substring(0, slashIndex).toLowerCase();
+                var valuePart = name.substring(slashIndex + 1).toLowerCase();
+                if (dynamicTypes.indexOf(typePart) !== -1 && valuePart.length > 0) {
+                    var resolved = resolveVfsNode("/" + typePart + "/" + valuePart);
+                    if (resolved && resolved.type !== "error") {
+                        return { path: "/" + typePart + "/" + valuePart, resolved: resolved };
+                    }
+                }
+            }
+
+            for (var i = 0; i < dynamicTypes.length; i++) {
+                var prefix = dynamicTypes[i] + "-";
+                if (name.toLowerCase().indexOf(prefix) === 0) {
+                    var valuePart = name.substring(prefix.length).toLowerCase();
+                    if (valuePart.length > 0) {
+                        var resolved = resolveVfsNode("/" + dynamicTypes[i] + "/" + valuePart);
+                        if (resolved && resolved.type !== "error") {
+                            return { path: "/" + dynamicTypes[i] + "/" + valuePart, resolved: resolved };
+                        }
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        function getGamesFromDynamicPath(vfsPath) {
+            var resolved = resolveVfsNode(vfsPath);
+            if (!resolved || resolved.type === "error" || !resolved.contents) {
+                return [];
+            }
+
+            var games = [];
+            for (var i = 0; i < resolved.contents.length; i++) {
+                var item = resolved.contents[i];
+                if (item.type === "game") {
+                    var game = findGameByExactTitle(item.name);
+                    if (game) {
+                        games.push(game);
+                    }
+                }
+            }
+            return games;
+        }
+
         function registerCommand(name, descriptor) {
             commandRegistry[name] = descriptor;
 
@@ -1554,6 +2274,15 @@ FocusScope {
                                     width: parent.width
                                     height: Math.max(promptText.height, commandText.height, vpx(16))
                                     visible: model.prompt !== "" || model.command !== ""
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        enabled: index === terminalModel.count - 1
+                                        onClicked: {
+                                            commandInput.forceActiveFocus();
+                                            Qt.inputMethod.show();
+                                        }
+                                    }
 
                                     Row {
                                         id: contentRow
@@ -1691,24 +2420,39 @@ FocusScope {
                                             line === "All-games" ||
                                             line === "games" ||
                                             line === "home" ||
-                                            line === "system") {
+                                            line === "system" ||
+                                            line === "genre" ||
+                                            line === "developer" ||
+                                            line === "publisher" ||
+                                            line === "year" ||
+                                            line === "rating") {
                                             return root.currentColorScheme.directoryColor;
-                                            }
+                                        }
 
-                                            if (line.indexOf("Collections") === 0 ||
-                                                line.indexOf("MostPlayed") === 0 ||
-                                                line.indexOf("LastPlayed") === 0 ||
-                                                line.indexOf("Favorites") === 0 ||
-                                                line.indexOf("All-games") === 0 ||
-                                                line.indexOf("games") === 0) {
-                                                return root.currentColorScheme.directoryColor;
-                                                }
+                                        if (line.indexOf("Collections") === 0 ||
+                                            line.indexOf("MostPlayed") === 0 ||
+                                            line.indexOf("LastPlayed") === 0 ||
+                                            line.indexOf("Favorites") === 0 ||
+                                            line.indexOf("All-games") === 0 ||
+                                            line.indexOf("games") === 0) {
+                                            return root.currentColorScheme.directoryColor;
+                                        }
 
-                                                if (terminalKernel.cwd === "/Collections" && line.length > 0 && line !== "(empty directory)") {
+                                        if ((model.cwd === "/Collections" || (terminalKernel.cwd === "/Collections" && !model.cwd)) && line.length > 0 && line !== "(empty directory)") {
+                                            return root.currentColorScheme.directoryColor;
+                                        }
+
+                                        if (line.length > 0) {
+                                            var firstChar = line.charAt(0);
+                                            if (firstChar >= '0' && firstChar <= '9') {
+                                                var dashIndex = line.indexOf('- ');
+                                                if (dashIndex > 0 && (line.indexOf(' game)') > 0 || line.indexOf(' games)') > 0)) {
                                                     return root.currentColorScheme.directoryColor;
                                                 }
+                                            }
+                                        }
 
-                                                return root.currentColorScheme.normalTextColor;
+                                        return root.currentColorScheme.normalTextColor;
                                     }
                                     font.family: root.activeFontFamily
                                     font.pixelSize: vpx(root.activeFontSize)
@@ -1734,7 +2478,8 @@ FocusScope {
                         command: "",
                         result: "",
                         isSystem: false,
-                        isError: false
+                        isError: false,
+                        cwd: terminalKernel.cwd
                     });
                 }
 
@@ -1758,6 +2503,16 @@ FocusScope {
 
                 MouseArea {
                     anchors.fill: parent
+                    
+                    onClicked: {
+                        var contentY = mouse.y;
+                        
+                        if (contentY > terminalColumn.height) {
+                            commandInput.forceActiveFocus();
+                            Qt.inputMethod.show();
+                        }
+                    }
+
                     onWheel: {
                         var delta = wheel.angleDelta.y;
                         var newY = outputView.contentY - delta;
@@ -1778,7 +2533,9 @@ FocusScope {
             TextInput {
                 id: commandInput
                 anchors.fill: parent
-                visible: false
+                z: -10
+                visible: true
+                opacity: 0
                 focus: true
 
                 echoMode: terminalKernel.passwordMode ? TextInput.Password : TextInput.Normal
@@ -1839,7 +2596,8 @@ FocusScope {
                             command: "",
                             result: "",
                             isSystem: false,
-                            isError: false
+                            isError: false,
+                            cwd: terminalKernel.cwd
                         });
                     }
                         } else {
@@ -1873,6 +2631,7 @@ FocusScope {
                         }
 
                         forceActiveFocus();
+                        Qt.inputMethod.show();
                 }
 
                 Keys.onPressed: {
