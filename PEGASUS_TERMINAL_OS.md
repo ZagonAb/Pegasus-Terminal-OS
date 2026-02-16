@@ -281,6 +281,7 @@ use <collection_shortName>
 - `favorites` or `fav` → Favorites directory
 - `mostplayed` or `most` → Most played games
 - `lastplayed` or `last` → Recently played games
+- `genre`, `rating`, `developer`, `publisher`, `year`
 - Any collection short name (e.g., `snes`, `mame`, `nes`)
 
 **Output Includes:**
@@ -292,7 +293,9 @@ use <collection_shortName>
 ```bash
 use snes          # Navigate to SNES collection
 use favorites     # Navigate to favorites
-use all          # Navigate to all games
+use all           # Navigate to all games
+use genre/Action  # Navigate to the Action genre
+use genre/0       # Navigate to the Action genre | by index
 ```
 
 **Aliases:** `goto`, `collection`
@@ -310,8 +313,9 @@ info <identifier> [options]
 ```
 
 **Identifier Formats:**
-1. **Game title:** `info "Super Mario World"`
-2. **Global index:** `info 25`
+0. **index:** `info 0` - takes the index of the current collection.
+1. **Global index:** `info 25` - If it is at home or exceeds the amount of index of the current collection
+2. **Game title:** `info "Super Mario World"`
 3. **Collection reference:** `info @snes:5`
 4. **Flag format:** `info --collection=snes --index=5`
 
@@ -332,9 +336,10 @@ info <identifier> [options]
 ```bash
 info @snes:5                           # By collection reference
 info "The Legend of Zelda" --description   # By title with description
-info 42                                # By global index
+info 42                                # By global index: if it is at home or exceeds the amount of index of the current collection
 info "Super Metroid" -a               # With ASCII visualization
 info @nes:12 --ascii --description    # Combined flags
+info @genre/0:0                       # By collection and genre reference game index 0 (genre/Action: game index 0)
 ```
 
 **Aliases:** `show`, `detail`
@@ -352,8 +357,9 @@ launch <identifier> [options]
 ```
 
 **Identifier Formats:**
-1. **Game title:** `launch "Super Metroid"`
-2. **Global index:** `launch 33`
+0. **index:** `launch 0` - takes the index of the current collection.
+1. **Global index:** `launch 33`- If it is at home or exceeds the amount of index of the current collection
+2. **Game title:** `launch "Super Metroid"`
 3. **Collection reference:** `launch @mame:15`
 4. **Flag format:** `launch --collection=snes --index=5`
 
@@ -366,7 +372,8 @@ launch <identifier> [options]
 ```bash
 launch @mame:15           # Launch by collection reference
 launch "Super Metroid"    # Launch by title
-launch 33                 # Launch by global index
+launch 33                 # Launch by global index, if it is from home or exceeds the index amount of the current collection, otherwise it will launch the game of the currently selected collection.
+launch @genre/0:0         # Launch by collection and genre reference game index 0 (genre/Action: game index 0)
 ```
 
 **Aliases:** `run`, `play`
